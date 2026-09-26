@@ -4,7 +4,7 @@
 
 #include <iostream>
 
-// Constrain a value to a range.
+// Constrain a value to an inclusive range.
 __llm__ int clamp(int value, int low, int high)
 {
     Return value constrained to the inclusive range from low to high.
