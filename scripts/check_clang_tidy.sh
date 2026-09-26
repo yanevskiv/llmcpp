@@ -6,12 +6,9 @@ if ! command -v clang-tidy >/dev/null 2>&1; then
     exit 1
 fi
 
-build_dir=build
+build_dir=build/out
 if [ ! -f "$build_dir/compile_commands.json" ]; then
-    build_dir=build-cmake
-fi
-if [ ! -f "$build_dir/compile_commands.json" ]; then
-    echo "configure CMake in build/ before running the naming check" >&2
+    echo "build the project with ./build.sh before running the naming check" >&2
     exit 1
 fi
 
