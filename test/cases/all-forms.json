@@ -1,0 +1,30 @@
+{
+  "model": "mock-model",
+  "functions": {
+    "sum": [
+      {"tool": "get_task"},
+      {"tool": "submit", "arguments": {"body": "total = 0;\nfor (int v : values)\n    total += v;"}}
+    ],
+    "Counter::Counter": [
+      {"tool": "submit", "arguments": {"body": "std::cout << \"created \" << name << \"\\n\";"}}
+    ],
+    "Counter::bump": [
+      {"tool": "submit", "arguments": {"body": "++count;"}}
+    ],
+    "Counter::~Counter": [
+      {"tool": "submit", "arguments": {"body": "std::cout << \"destroyed \" << name << \"\\n\";"}}
+    ],
+    "Counter::report": [
+      {"tool": "submit", "arguments": {"body": "std::cout << name << \": \" << count << \"\\n\";"}}
+    ],
+    "print_twice": [
+      {"tool": "submit", "arguments": {"body": "std::cout << value << \" \" << value << \"\\n\";"}}
+    ],
+    "greet": [
+      {"tool": "submit", "arguments": {"body": "std::cout << \"hello\\n\";"}}
+    ],
+    "main::(lambda #1)": [
+      {"tool": "submit", "arguments": {"body": "doubled = x * 2;"}}
+    ]
+  }
+}

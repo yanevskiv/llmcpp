@@ -1,0 +1,9 @@
+{
+  "model": "mock-model",
+  "functions": {
+    "*": [
+      {"tool": "submit", "arguments": {"body": "not_declared();"}},
+      {"respond": {"status": "error", "message": "mock gave up"}}
+    ]
+  }
+}

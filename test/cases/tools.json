@@ -1,0 +1,24 @@
+{
+  "model": "mock-model",
+  "functions": {
+    "Account::deposit": [
+      {"tool": "lookup", "arguments": {"name": "cents"}},
+      {"tool": "submit", "arguments": {"body": "cents += amount;"}}
+    ],
+    "peek": [
+      {"tool": "get_task"},
+      {"tool": "lookup", "arguments": {"name": "Account::cents"}},
+      {"tool": "lookup", "arguments": {"name": "helper_declared_later"}},
+      {"tool": "describe_type", "arguments": {"type": "Account"}},
+      {"tool": "list_members", "arguments": {"type": "Account"}},
+      {"tool": "try_compile", "arguments": {"body": "account.cents = 1;"}},
+      {"tool": "submit", "arguments": {"body": "return 1;"}},
+      {"tool": "submit", "arguments": {"body": "std::cout << account.balance() << \"\\n\";"}}
+    ],
+    "main::(lambda #1)": [
+      {"tool": "get_context"},
+      {"tool": "submit", "arguments": {"body": "return hits;"}},
+      {"tool": "submit", "arguments": {"body": "++hits;"}}
+    ]
+  }
+}
