@@ -1,9 +1,10 @@
 /*
- * C++ file for the out-of-process LLM agent session.
+ * C++ file for LLM backend selection and external-agent transport.
  */
 
 // Project headers for agent transport and generation options.
 #include "llmcpp/agent/agent_session.h"
+#include "llmcpp/agent/anthropic_session.h"
 #include "llmcpp/data/options.h"
 
 // LLVM headers for JSON transport and process support.
@@ -65,7 +66,7 @@ namespace llmcpp
             return "llmcpp-agent";
         }
 
-        // Start the agent and complete the MCP handshake.
+        // Start the external agent and complete the MCP handshake.
         bool AgentSession::start(std::string &error)
         {
             int sockets[2];
@@ -332,6 +333,13 @@ namespace llmcpp
         bool AgentSession::generate(json::Object task, ToolHandler &tools,
                                     data::AgentOutcome &result, std::string &error)
         {
+            if (use_native_anthropic(m_opts)) {
+                bool completed = generate_anthropic(m_opts, std::move(task), tools, result, error);
+                if (!result.m_model.empty()) {
+                    m_model = result.m_model;
+                }
+                return completed;
+            }
             if (m_pid <= 0 && !start(error)) {
                 return false;
             }

@@ -45,6 +45,30 @@ if [[ ! -f "$STAMP" ]]; then
   echo "fetch-deps: done ($(du -sh "$DEPS/root" | cut -f1) in $DEPS/root)"
 fi
 
+OPENSSL_STAMP="$DEPS/root/.fetched-openssl"
+if [[ ! -f "$OPENSSL_STAMP" ]]; then
+  command -v apt-get >/dev/null || { echo "fetch-deps: apt-get not found (Debian/Ubuntu only)" >&2; exit 1; }
+  command -v dpkg-deb >/dev/null || { echo "fetch-deps: dpkg-deb not found" >&2; exit 1; }
+
+  mkdir -p "$DEPS/debs" "$DEPS/root"
+  cd "$DEPS/debs"
+  ssl_runtime="$(apt-cache depends libssl-dev | sed -n 's/^[[:space:]]*Depends: \(libssl[^ ]*\)$/\1/p' | head -1)"
+  if [[ -z "$ssl_runtime" ]]; then
+    echo "fetch-deps: could not determine the libssl runtime package" >&2
+    exit 1
+  fi
+  echo "fetch-deps: downloading libssl-dev $ssl_runtime"
+  apt-get download libssl-dev "$ssl_runtime" >/dev/null
+  ssl_dev_deb="$(ls libssl-dev_*.deb | head -1)"
+  ssl_runtime_deb="$(ls "$ssl_runtime"_*.deb | head -1)"
+  dpkg-deb --fsys-tarfile "$ssl_dev_deb" | tar -x -C "$DEPS/root" --wildcards \
+    './usr/include/openssl/*' './usr/include/*/openssl/*' \
+    './usr/lib/*/libssl.so' './usr/lib/*/libcrypto.so'
+  dpkg-deb --fsys-tarfile "$ssl_runtime_deb" | tar -x -C "$DEPS/root" --wildcards \
+    './usr/lib/*/libssl.so.*' './usr/lib/*/libcrypto.so.*'
+  touch "$OPENSSL_STAMP"
+fi
+
 CATCH2_VERSION="3.8.1"
 CATCH2_SOURCE="$DEPS/catch2/src"
 if [[ ! -f "$CATCH2_SOURCE/CMakeLists.txt" ]]; then
@@ -62,4 +86,24 @@ if [[ ! -f "$CATCH2_SOURCE/CMakeLists.txt" ]]; then
     exit 1
   fi
   tar -xzf "$archive" --strip-components=1 -C "$CATCH2_SOURCE"
+fi
+
+CPPHTTPLIB_VERSION="0.56.0"
+CPPHTTPLIB_HEADER="$DEPS/cpp-httplib/include/httplib.h"
+if [[ ! -f "$CPPHTTPLIB_HEADER" ]]; then
+  mkdir -p "$(dirname "$CPPHTTPLIB_HEADER")"
+  echo "fetch-deps: downloading cpp-httplib $CPPHTTPLIB_VERSION"
+  cpphttplib_download="$CPPHTTPLIB_HEADER.tmp"
+  rm -f "$cpphttplib_download"
+  if command -v curl >/dev/null; then
+    curl --fail --location --output "$cpphttplib_download" \
+      "https://raw.githubusercontent.com/yhirose/cpp-httplib/v$CPPHTTPLIB_VERSION/httplib.h"
+  elif command -v wget >/dev/null; then
+    wget --output-document="$cpphttplib_download" \
+      "https://raw.githubusercontent.com/yhirose/cpp-httplib/v$CPPHTTPLIB_VERSION/httplib.h"
+  else
+    echo "fetch-deps: curl or wget is required to download cpp-httplib" >&2
+    exit 1
+  fi
+  mv "$cpphttplib_download" "$CPPHTTPLIB_HEADER"
 fi

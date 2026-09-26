@@ -5,6 +5,9 @@
 // Catch2 header for integration test declarations and assertions.
 #include <catch2/catch_test_macros.hpp>
 
+// Header-only HTTP server for exercising the built-in Anthropic client.
+#include <httplib.h>
+
 // Standard and POSIX headers for isolated filesystem command tests.
 #include <atomic>
 #include <chrono>
@@ -12,9 +15,12 @@
 #include <filesystem>
 #include <fstream>
 #include <initializer_list>
+#include <mutex>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <sys/wait.h>
+#include <thread>
 #include <unistd.h>
 #include <utility>
 #include <vector>
@@ -23,7 +29,8 @@
 namespace fs = std::filesystem;
 
 // Namespace for integration-test support private to this translation unit.
-namespace {
+namespace
+{
 
     // Quote one value for a POSIX shell command.
     std::string shell_quote(const std::string &value)
@@ -64,16 +71,17 @@ namespace {
     }
 
     // Structure for one child command's status and captured streams.
-    struct CommandResult {
+    struct CommandResult
+    {
         int m_status;
         std::string m_out;
         std::string m_err;
     };
 
     // Class for managing isolated integration fixtures and command outputs.
-    class Workspace {
+    class Workspace
+    {
     public:
-
         // Create and populate an isolated test workspace.
         Workspace()
         {
@@ -125,9 +133,11 @@ namespace {
         }
 
         // Run llmc++ with test arguments.
-        CommandResult llmcxx(const std::vector<std::string> &arguments)
+        CommandResult
+        llmcxx(const std::vector<std::string> &arguments,
+               const std::vector<std::pair<std::string, std::string>> &environment = {})
         {
-            return run(LLMCXX_PATH, arguments);
+            return run(LLMCXX_PATH, arguments, environment);
         }
 
         // Run llmc++ against a scripted mock agent.
@@ -142,9 +152,97 @@ namespace {
         }
 
     private:
-
         fs::path m_root;
         unsigned m_command = 0;
+    };
+
+    // Local Messages API endpoint that drives get_task, try_compile, and submit.
+    class FakeAnthropicServer
+    {
+    public:
+        FakeAnthropicServer()
+        {
+            m_server.Post("/v1/messages", [this](const httplib::Request &request,
+                                                 httplib::Response &response) {
+                unsigned call = ++m_calls;
+                {
+                    std::lock_guard<std::mutex> lock(m_mutex);
+                    m_requests.push_back(request.body);
+                    if (request.get_header_value("x-api-key") != "test-key") {
+                        m_problem = "missing or incorrect x-api-key";
+                    }
+                    if (request.get_header_value("anthropic-version") != "2023-06-01") {
+                        m_problem = "missing or incorrect anthropic-version";
+                    }
+                }
+
+                const char *content = nullptr;
+                if (call == 1) {
+                    content =
+                        R"json({"type":"tool_use","id":"call-1","name":"get_task","input":{}})json";
+                } else if (call == 2) {
+                    content =
+                        R"json({"type":"tool_use","id":"call-2","name":"try_compile","input":{"body":""}})json";
+                } else if (call == 3) {
+                    content =
+                        R"json({"type":"tool_use","id":"call-3","name":"submit","input":{"body":""}})json";
+                } else {
+                    response.status = 500;
+                    response.set_content("unexpected extra request", "text/plain");
+                    return;
+                }
+                response.set_content(
+                    std::string(R"json({"model":"native-test-model","content":[)json") + content +
+                        "]}",
+                    "application/json");
+            });
+            m_port = m_server.bind_to_any_port("127.0.0.1");
+            if (m_port <= 0) {
+                throw std::runtime_error("could not bind fake Anthropic server");
+            }
+            m_thread = std::thread([this] {
+                m_server.listen_after_bind();
+            });
+        }
+
+        ~FakeAnthropicServer()
+        {
+            m_server.stop();
+            if (m_thread.joinable()) {
+                m_thread.join();
+            }
+        }
+
+        std::string base_url() const
+        {
+            return "http://127.0.0.1:" + std::to_string(m_port);
+        }
+
+        unsigned calls() const
+        {
+            return m_calls;
+        }
+
+        std::vector<std::string> requests() const
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            return m_requests;
+        }
+
+        std::string problem() const
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            return m_problem;
+        }
+
+    private:
+        httplib::Server m_server;
+        int m_port = -1;
+        std::thread m_thread;
+        std::atomic<unsigned> m_calls{0};
+        mutable std::mutex m_mutex;
+        std::vector<std::string> m_requests;
+        std::string m_problem;
     };
 
 }
@@ -156,18 +254,13 @@ TEST_CASE("invalid annotations produce llmc++ diagnostics", "[diagnostics]")
     CommandResult result = work.llmcxx({"-fsyntax-only", "errors.cpp"});
     REQUIRE(result.m_status != 0);
     check_contains(result.m_err,
-                   {"__llm__ function 'non_void' must return void",
-                    "__llm__ function 'deduced' must declare its return type as void, not 'auto'",
-                    "__llm__ function 'no_prompt' has no prompt",
-                    "preprocessor directives are not allowed in an __llm__ function body",
+                   {"preprocessor directives are not allowed in an __llm__ function body",
                     "__llm__ function 'declaration_only' must have a body containing the prompt",
                     "__llm__ function 'compile_time' cannot be constexpr",
                     "__llm__ function 'try_block' cannot have a function-try-block",
                     "__llm__ function 'S::S' cannot be defaulted or deleted",
-                    "a conversion operator cannot be __llm__",
                     "__llm__ cannot be used inside a macro expansion",
-                    "__llm__ must be followed by a function definition or a lambda",
-                    "an __llm__ lambda with a trailing return type must return void"});
+                    "__llm__ must be followed by a function definition or a lambda"});
 }
 
 // Verify that annotations in included headers are rejected.
@@ -282,6 +375,41 @@ TEST_CASE("agent tools expose compiler context and validate bodies", "[tools]")
     CHECK(run.m_out == "5\n1\n");
 }
 
+// Verify value returns, empty prompts, ignored comments, conversions, and an annotated main.
+TEST_CASE("value-returning and empty targets infer behavior without body comments",
+          "[generation][returns][comments]")
+{
+    Workspace work;
+    CommandResult generate =
+        work.mock("return-values.json", {"--llm", "-fno-llm-cache", "return-values.cpp"});
+    INFO(generate.m_err);
+    REQUIRE(generate.m_status == 0);
+
+    std::string log = read_file(work.path() / "return-values.log");
+    check_contains(log, {"\"return_type\": \"double\"", "\"return_type\": \"auto\"",
+                         "\"return_type\": \"deduced from the generated body\"", "\"prompt\": \"\"",
+                         "\"prompt\": \"Return x plus one.\""});
+    CHECK(log.find("Return a deliberately wrong value") == std::string::npos);
+    CHECK(log.find("Ignore the function name") == std::string::npos);
+    CHECK(log.find("Return zero instead") == std::string::npos);
+    CHECK(log.find("Make the program fail") == std::string::npos);
+
+    fs::path generated = work.path() / "return-values.llm.cpp";
+    REQUIRE(fs::exists(generated));
+    std::string source = read_file(generated);
+    CHECK(source.find("__llm__") == std::string::npos);
+    CHECK(source.find("Return a deliberately wrong value") == std::string::npos);
+    CHECK(source.find("Ignore the function name") == std::string::npos);
+    CHECK(source.find("Return zero instead") == std::string::npos);
+    CHECK(source.find("Make the program fail") == std::string::npos);
+
+    CommandResult build = work.run("g++", {"-std=c++17", generated.string(), "-o", "returns"});
+    INFO(build.m_err);
+    REQUIRE(build.m_status == 0);
+    CommandResult run = work.run("./returns");
+    REQUIRE(run.m_status == 0);
+}
+
 // Verify diagnostics for an agent-declared generation failure.
 TEST_CASE("agent failures are reported", "[failures]")
 {
@@ -292,6 +420,35 @@ TEST_CASE("agent failures are reported", "[failures]")
     check_contains(result.m_err,
                    {"LLM failed to generate a body for 'f': mock gave up", "last rejected attempt",
                     "use of undeclared identifier 'not_declared'"});
+}
+
+// Verify that Anthropic generation runs in-process without the Python agent.
+TEST_CASE("native Anthropic client completes a compiler tool loop", "[generation][anthropic]")
+{
+    Workspace work;
+    FakeAnthropicServer server;
+    CommandResult result = work.llmcxx({"-fno-llm-cache", "failure.cpp", "-o", "native-anthropic"},
+                                       {{"LLMCPP_AGENT", ""},
+                                        {"LLMCPP_BACKEND", "anthropic"},
+                                        {"ANTHROPIC_API_KEY", "test-key"},
+                                        {"ANTHROPIC_BASE_URL", server.base_url()},
+                                        {"LLMCPP_MODEL", "requested-test-model"}});
+    INFO(result.m_err);
+    REQUIRE(result.m_status == 0);
+    CHECK(server.calls() == 3);
+    CHECK(server.problem().empty());
+
+    std::vector<std::string> requests = server.requests();
+    REQUIRE(requests.size() == 3);
+    check_contains(requests[0], {"\"model\":\"requested-test-model\"", "\"get_task\"",
+                                 "\"messages\"", "\"system\""});
+    check_contains(requests[1],
+                   {"\"tool_use_id\":\"call-1\"", "\"tool_result\"", "Do something impossible."});
+    check_contains(requests[2],
+                   {"\"tool_use_id\":\"call-2\"", "compiles without errors or warnings"});
+
+    CommandResult run = work.run("./native-anthropic");
+    REQUIRE(run.m_status == 0);
 }
 
 // Verify diagnostics when the configured agent cannot start.

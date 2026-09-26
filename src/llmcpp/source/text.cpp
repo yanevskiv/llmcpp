@@ -91,63 +91,6 @@ namespace llmcpp
             return out;
         }
 
-        // Convert legacy prompt comments into normalized prompt text.
-        std::string normalize_prompt(llvm::ArrayRef<data::PromptComment> comments)
-        {
-            std::vector<std::string> lines;
-            for (const data::PromptComment &c : comments) {
-                StringRef t = c.m_text;
-                if (c.m_blank_line_before && !lines.empty()) {
-                    lines.push_back("");
-                }
-
-                if (t.consume_front("//")) {
-                    if (t.starts_with("/") || t.starts_with("!")) {
-                        t = t.drop_front();
-                    }
-                    for (std::string &l : split_lines(t)) {
-                        lines.push_back(std::move(l));
-                    }
-                    continue;
-                }
-
-                if (t.consume_front("/*")) {
-                    t.consume_back("*/");
-                    if (t.starts_with("*") || t.starts_with("!")) {
-                        t = t.drop_front();
-                    }
-                    std::vector<std::string> block = split_lines(t);
-
-                    bool stars = block.size() > 1;
-                    for (size_t i = 1; i < block.size() && stars; ++i) {
-                        StringRef l = StringRef(block[i]).ltrim();
-                        stars = l.empty() || l.starts_with("*");
-                    }
-                    if (stars) {
-                        for (size_t i = 1; i < block.size(); ++i) {
-                            StringRef l = StringRef(block[i]).ltrim();
-                            l.consume_front("*");
-                            block[i] = l.str();
-                        }
-                    }
-
-                    if (!block.empty() && is_blank(block.front())) {
-                        block.erase(block.begin());
-                    }
-                    if (!block.empty() && is_blank(block.back())) {
-                        block.pop_back();
-                    }
-                    lines.insert(lines.end(), block.begin(), block.end());
-                    continue;
-                }
-
-                for (std::string &l : split_lines(t)) {
-                    lines.push_back(std::move(l));
-                }
-            }
-            return join_dedented(std::move(lines));
-        }
-
         // Remove outer blank lines and common indentation.
         std::string dedent(StringRef text)
         {

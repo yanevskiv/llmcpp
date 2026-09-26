@@ -6,8 +6,6 @@
 #define LLMCPP_DATA_TARGET_H
 
 #include <string>
-#include <utility>
-#include <vector>
 /** Namespace for required Clang forward declarations. */
 namespace clang
 {
@@ -36,8 +34,6 @@ namespace llmcpp
             unsigned m_l_brace = 0;
             /** Source offset of the prompt body's closing brace. */
             unsigned m_r_brace = 0;
-            /** Source ranges of comments retained from the prompt body. */
-            std::vector<std::pair<unsigned, unsigned>> m_comments;
             /** Stable display name of the target. */
             std::string m_name;
             /** Source signature supplied to the agent. */
@@ -46,8 +42,6 @@ namespace llmcpp
             std::string m_location;
             /** Normalized prompt text supplied to the agent. */
             std::string m_prompt_text;
-            /** Raw, dedented prompt-body text. */
-            std::string m_prompt_raw;
             /** Stable cache key for the target. */
             std::string m_key;
             /** Whether generation has produced a body. */

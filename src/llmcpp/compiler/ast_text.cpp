@@ -126,7 +126,7 @@ namespace llmcpp
                 text += "virtual ";
             }
             if (!isa<CXXConstructorDecl>(function) && !isa<CXXDestructorDecl>(function)) {
-                text += print_type(function->getReturnType(), ctx) + " ";
+                text += print_type(function->getDeclaredReturnType(), ctx) + " ";
             }
             text +=
                 function->getQualifiedNameAsString() + "(" + parameter_list(function, ctx) + ")";
@@ -189,7 +189,7 @@ namespace llmcpp
                 text += " mutable";
             }
             if (lambda->hasExplicitResultType()) {
-                text += " -> " + print_type(call->getReturnType(), ctx);
+                text += " -> " + print_type(call->getDeclaredReturnType(), ctx);
             }
             return text;
         }

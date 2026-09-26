@@ -1,0 +1,33 @@
+{
+  "model": "mock-model",
+  "functions": {
+    "square_root": [
+      {"tool": "get_task"},
+      {"tool": "submit", "arguments": {"body": "return __builtin_sqrt(x);"}}
+    ],
+    "increment": [
+      {"tool": "get_task"},
+      {"tool": "submit", "arguments": {"body": "return x + 1;"}}
+    ],
+    "answer": [
+      {"tool": "get_task"},
+      {"tool": "submit", "arguments": {"body": "return 42;"}}
+    ],
+    "Number::operator int": [
+      {"tool": "get_task"},
+      {"tool": "submit", "arguments": {"body": "return 7;"}}
+    ],
+    "(lambda #1)": [
+      {"tool": "get_task"},
+      {"tool": "submit", "arguments": {"body": "return x * 2;"}}
+    ],
+    "(lambda #2)": [
+      {"tool": "get_task"},
+      {"tool": "submit", "arguments": {"body": "return x * 2;"}}
+    ],
+    "main": [
+      {"tool": "get_task"},
+      {"tool": "submit", "arguments": {"body": "if (square_root(81.0) != 9.0) return 1;\nif (increment(4) != 5) return 2;\nif (answer() != 42) return 3;\nif (static_cast<int>(Number{}) != 7) return 4;\nif (explicit_twice(3) != 6) return 5;\nif (deduced_twice(4) != 8) return 6;\nreturn 0;"}}
+    ]
+  }
+}

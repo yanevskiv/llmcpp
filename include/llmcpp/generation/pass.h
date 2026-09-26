@@ -159,7 +159,7 @@ namespace llmcpp
             const data::Options &m_opts;
             /** Output result updated as the pass progresses. */
             data::PassResult &m_result;
-            /** JSON-RPC session used to request generated code. */
+            /** Native or external session used to request generated code. */
             agent::AgentSession m_agent;
             /** Original Clang frontend arguments. */
             std::vector<std::string> m_cc1_args;

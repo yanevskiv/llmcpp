@@ -1,5 +1,5 @@
 /*
- * C++ header for the out-of-process LLM agent session.
+ * C++ header for native and out-of-process LLM generation sessions.
  */
 
 #ifndef LLMCPP_AGENT_SESSION_H
@@ -28,7 +28,7 @@ namespace llmcpp
          * @return JSON array of tool schemas.
          */
         llvm::json::Array tool_definitions();
-        /** Owns one agent subprocess and its JSON-RPC connection. */
+        /** Selects native generation or owns an external agent connection. */
         class AgentSession
         {
         public:
@@ -63,7 +63,7 @@ namespace llmcpp
 
         private:
             /**
-             * Start the agent and complete its MCP handshake.
+             * Start the external agent and complete its MCP handshake.
              *
              * @param error Destination for startup diagnostics.
              * @return True when the agent is ready.
@@ -112,9 +112,9 @@ namespace llmcpp
             std::string command() const;
             /** Immutable options controlling the agent process. */
             const data::Options &m_opts;
-            /** Connected agent socket descriptor, or -1 when disconnected. */
+            /** Connected external-agent socket, or -1 when disconnected. */
             int m_fd = -1;
-            /** Agent process identifier, or -1 before startup. */
+            /** External-agent process identifier, or -1 before startup. */
             pid_t m_pid = -1;
             /** Whether the active request exceeded its deadline. */
             bool m_timed_out = false;

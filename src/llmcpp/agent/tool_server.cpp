@@ -445,8 +445,7 @@ namespace llmcpp
                            {"signature", m_target.m_signature},
                            {"location", m_target.m_location},
                            {"language", language_name(c.getLangOpts())},
-                           {"prompt", m_target.m_prompt_text},
-                           {"prompt_raw", m_target.m_prompt_raw}};
+                           {"prompt", m_target.m_prompt_text}};
             if (!m_target.m_lambda) {
                 if (const RawComment *rc = c.getRawCommentForAnyRedecl(fd)) {
                     o["doc_comment"] = rc->getFormattedText(sm(), c.getDiagnostics());
@@ -467,6 +466,28 @@ namespace llmcpp
                 }
             }
             o["parameters"] = std::move(params);
+
+            std::string returnRule;
+            if (isa<CXXConstructorDecl>(fd) || isa<CXXDestructorDecl>(fd)) {
+                returnRule = "This target has no return value.";
+            } else if (m_target.m_lambda && !m_target.m_lambda->hasExplicitResultType()) {
+                o["return_type"] = "deduced from the generated body";
+                returnRule = "The lambda's return type is deduced from the generated body.";
+                outputs.push_back("the lambda's deduced return value");
+            } else {
+                QualType returnType = fd->getDeclaredReturnType();
+                std::string returnName = compiler::print_type(returnType, c);
+                o["return_type"] = returnName;
+                if (returnType->getContainedAutoType()) {
+                    returnRule = "The return type is deduced from the generated body.";
+                    outputs.push_back("the function's deduced return value");
+                } else if (fd->getReturnType()->isVoidType()) {
+                    returnRule = "The function returns void; do not return a value.";
+                } else {
+                    returnRule = "Return a value compatible with " + returnName + ".";
+                    outputs.push_back("the function's return value (" + returnName + ")");
+                }
+            }
 
             if (md && md->isInstance() && !m_target.m_lambda) {
                 std::string className = md->getParent()->getQualifiedNameAsString();
@@ -558,9 +579,8 @@ namespace llmcpp
             }
             o["outputs"] = std::move(outputs);
             o["rules"] = "Write only the statements of the body: no signature, no outer "
-                         "braces, no preprocessor directives. The function returns "
-                         "void, so never return a value. Call try_compile before "
-                         "submit.";
+                         "braces, no preprocessor directives. " +
+                         returnRule + " Call try_compile before submit.";
             return o;
         }
 

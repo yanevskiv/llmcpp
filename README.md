@@ -14,7 +14,7 @@ For example, the LLM will know what T is.
 // $ ./main
 #include <iostream>
 
-template <typename T> __llm__ f()
+template <typename T> __llm__ void f()
 {
     Use std::cout to print type is T is here.
 }
@@ -54,8 +54,10 @@ Add the installed tools to this shell's `PATH`.
 export PATH="$PWD/build/install/bin:$PATH"
 ```
 
-Provide the API key in the environment inherited by `llmc++` and its agent.
-Alternatively, use `LLMCPP_BACKEND=claude-code` if you're already logged in with Claude Code.
+Provide the API key in the environment inherited by `llmc++`. The Anthropic API
+backend is built into the C++ driver and does not start Python. Alternatively,
+use `LLMCPP_BACKEND=claude-code` if you're already logged in with Claude Code;
+that backend uses the installed Python adapter to launch the `claude` CLI.
 ```sh
 # export LLMCPP_BACKEND=claude-code
 export LLMCPP_BACKEND=anthropic
@@ -67,9 +69,30 @@ Compile the program and run it:
 ```sh
  $ llmc++ main.cpp -o main
  $ ./main
-Hello world!
+Hello from llmcpp!
 ```
-The code was generated at compile time, so `./main` will always print "Hello world!".
+The code was generated at compile time, so `./main` will always print the same text.
+
+Generated functions may return values, and an empty body asks the agent to infer
+the conventional behavior from the function name and signature. Comments inside
+an `__llm__` body are ignored rather than included in its prompt:
+
+```cpp
+__llm__ double sqrt(double x) {
+    /* This comment is not visible to the agent. */
+}
+```
+
+## Examples
+
+[`examples/`](examples/) contains four numbered examples: a hello function, a
+type-aware template, an empty inferred square-root function, and a constrained
+return-value helper. For example:
+
+```sh
+llmc++ examples/example01_hello.cpp -o hello
+./hello
+```
 
 ## Learn more
 

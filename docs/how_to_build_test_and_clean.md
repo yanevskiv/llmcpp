@@ -5,11 +5,13 @@
 - Debian or Ubuntu on x86-64
 - CMake 3.20 or newer and a C++17 compiler
 - A CMake build backend such as Make or Ninja
-- `python3`, `apt-get`, `dpkg-deb`, and either `curl` or `wget`
+- `apt-get`, `dpkg-deb`, and either `curl` or `wget`
+- `python3` for the Claude Code backend and the scripted integration-test agent
 - An LLM backend: an Anthropic API key or Claude Code
 
 Root access is not required. `fetch-deps.sh` downloads and extracts Clang/LLVM
-19 and Catch2 into the project-local `deps/` directory.
+19, OpenSSL development files, Catch2, and the single-header `cpp-httplib`
+dependency into the project-local `deps/` directory.
 
 ## Commands
 
@@ -39,6 +41,7 @@ flowchart TD
     Install --> Lib[lib/\nClang runtime and resource headers]
 ```
 
-`deps/` and `build/` are ignored by Git. The installed agent sits next to
-`llmc++` because that is where the driver looks for it. The `lib/` directory
-contains the Clang runtime and resource headers used by the installed driver.
+`deps/` and `build/` are ignored by Git. The optional installed agent sits next
+to `llmc++` because that is where the driver looks for it when using Claude Code
+or another external backend. The `lib/` directory contains the Clang runtime
+and resource headers used by the installed driver.

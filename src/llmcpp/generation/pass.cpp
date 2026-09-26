@@ -68,7 +68,7 @@ namespace llmcpp
             // Constants for lexical markers used while discovering prompt bodies.
             const char Keyword[] = "__llm__";
             const unsigned KeywordLength = sizeof(Keyword) - 1;
-            const char CacheVersion[] = "llmcpp-prototype-1";
+            const char CacheVersion[] = "llmcpp-prototype-2";
 
             // Recognize the first character of an identifier.
             static bool is_identifier_start(char c)
@@ -519,11 +519,6 @@ namespace llmcpp
             SourceManager &sm = ctx.getSourceManager();
             FunctionDecl *fd = t.m_function;
             std::string what = t.m_lambda ? "lambda" : "'" + fd->getQualifiedNameAsString() + "'";
-            auto returnLoc = [&]() {
-                SourceLocation l = fd->getReturnTypeSourceRange().getBegin();
-                return l.isValid() ? l : kw;
-            };
-
             Stmt *bodyStmt = t.m_lambda ? t.m_lambda->getBody() : fd->getBody();
             if (!t.m_lambda) {
                 if (fd->isDefaulted() || fd->isDeleted()) {
@@ -541,35 +536,6 @@ namespace llmcpp
                 if (fd->getConstexprKind() != ConstexprSpecKind::Unspecified) {
                     report(kw, DiagnosticsEngine::Error, "__llm__ function %0 cannot be constexpr")
                         << what;
-                    return false;
-                }
-                if (isa<CXXConversionDecl>(fd)) {
-                    report(kw, DiagnosticsEngine::Error,
-                           "a conversion operator cannot be __llm__ because it must return "
-                           "a value");
-                    return false;
-                }
-                if (!isa<CXXConstructorDecl>(fd) && !isa<CXXDestructorDecl>(fd)) {
-                    if (fd->getDeclaredReturnType()->getContainedAutoType()) {
-                        report(returnLoc(), DiagnosticsEngine::Error,
-                               "__llm__ function %0 must declare its return type as void, "
-                               "not 'auto'")
-                            << what;
-                        return false;
-                    }
-                    if (!fd->getReturnType()->isVoidType()) {
-                        report(returnLoc(), DiagnosticsEngine::Error,
-                               "__llm__ function %0 must return void")
-                            << what;
-                        return false;
-                    }
-                }
-            } else if (t.m_lambda->hasExplicitResultType()) {
-                if (fd->getDeclaredReturnType()->getContainedAutoType() ||
-                    !fd->getReturnType()->isVoidType()) {
-                    report(kw, DiagnosticsEngine::Error,
-                           "an __llm__ lambda with a trailing return type must return "
-                           "void");
                     return false;
                 }
             }
@@ -625,7 +591,7 @@ namespace llmcpp
                       src.begin() + t.m_l_brace + 1, src.end());
             lex.SetCommentRetentionState(true);
             Token tok;
-            bool hasProse = false;
+            std::vector<std::pair<unsigned, unsigned>> comments;
             while (true) {
                 lex.LexFromRawLexer(tok);
                 unsigned offset = sm.getFileOffset(tok.getLocation());
@@ -633,34 +599,19 @@ namespace llmcpp
                     break;
                 }
                 if (tok.is(tok::comment)) {
-                    t.m_comments.push_back({offset, offset + tok.getLength()});
-                    continue;
+                    comments.push_back({offset, offset + tok.getLength()});
                 }
-                hasProse = true;
             }
 
-            if (hasProse) {
-                t.m_prompt_text = source::dedent(bodyText);
-            } else {
-                std::vector<data::PromptComment> parts;
-                for (size_t i = 0; i < t.m_comments.size(); ++i) {
-                    data::PromptComment pc;
-                    pc.m_text = src.slice(t.m_comments[i].first, t.m_comments[i].second);
-                    if (i) {
-                        pc.m_blank_line_before =
-                            src.slice(t.m_comments[i - 1].second, t.m_comments[i].first)
-                                .count('\n') >= 2;
+            std::string prompt = bodyText.str();
+            for (const auto &[begin, end] : comments) {
+                for (unsigned i = begin - t.m_l_brace - 1; i < end - t.m_l_brace - 1; ++i) {
+                    if (prompt[i] != '\n' && prompt[i] != '\r') {
+                        prompt[i] = ' ';
                     }
-                    parts.push_back(pc);
                 }
-                t.m_prompt_text = source::normalize_prompt(parts);
             }
-            if (t.m_prompt_text.empty()) {
-                report(l, DiagnosticsEngine::Error, "__llm__ function %0 has no prompt") << what;
-                report(l, DiagnosticsEngine::Note, "write the prompt inside the braces");
-                return false;
-            }
-            t.m_prompt_raw = source::dedent(bodyText);
+            t.m_prompt_text = source::dedent(prompt);
 
             PresumedLoc p = sm.getPresumedLoc(kw);
             t.m_location = formatv("{0}:{1}:{2}", llvm::sys::path::filename(p.getFilename()),

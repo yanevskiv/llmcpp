@@ -20,11 +20,10 @@ namespace llmcpp
          *
          * @param cc1Args Clang `-cc1` arguments without the `-cc1` marker.
          * @param opts Driver and generation options.
-         * @param suppressWarnings Whether parsing warnings should be hidden.
          * @return Pass status and rewritten source when generation succeeds.
          */
         data::PassResult run_llm_pass(llvm::ArrayRef<const char *> cc1Args,
-                                      const data::Options &opts, bool suppressWarnings);
+                                      const data::Options &opts);
     }
 }
 
