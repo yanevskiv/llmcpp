@@ -203,7 +203,7 @@ namespace llmcpp
                                                                  job->getArguments().end());
                     std::string output = *source;
                     data::PassResult passResult =
-                        generation::run_llm_pass(cc1Args, options.options(), false);
+                        generation::run_llm_pass(cc1Args, options.options());
                     if (passResult.m_status == data::PassStatus::Failed) {
                         result = 1;
                         continue;
@@ -251,8 +251,7 @@ namespace llmcpp
                 }
                 llvm::SmallVector<const char *, 128> cc1Args(job.getArguments().begin() + 1,
                                                              job.getArguments().end());
-                data::PassResult passResult =
-                    generation::run_llm_pass(cc1Args, options.options(), true);
+                data::PassResult passResult = generation::run_llm_pass(cc1Args, options.options());
                 if (passResult.m_status == data::PassStatus::Failed) {
                     failed = true;
                 } else if (passResult.m_status == data::PassStatus::Rewritten) {

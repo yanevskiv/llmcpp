@@ -1,7 +1,8 @@
 # llmcpp — PLAN
 
 A fork of clang++ that understands an `__llm__` function specifier. An `__llm__`
-function, method or lambda returns `void`, and its body is **plain-language text**.
+function, method or lambda may return any valid C++ return type, and its body is
+**plain-language text**.
 That text is the prompt. While compiling, clang asks an LLM agent to write the
 real body. The agent never sees the source text. It learns about the surroundings by
 calling tools that query clang's AST and `Sema` at the exact point where the body
@@ -19,7 +20,7 @@ __llm__ void greet(const std::string& name) {
 
 **Goals**
 - `__llm__` on free functions, member functions (inline and out-of-line), constructors,
-  destructors, and lambdas, all returning `void`.
+  destructors, and lambdas with ordinary explicit or deduced return types.
 - Before ordinary C++ parsing, the compiler blanks prompt bodies in a
   length-preserving view. Source locations and the surrounding compilation context
   therefore remain unchanged while prompt text does not need C++ comment syntax.
@@ -35,7 +36,6 @@ __llm__ void greet(const std::string& name) {
   (§3.6). This works like `nvcc --cuda main.cu` producing `main.cu.cpp.ii`.
 
 **Non-goals (v1)**
-- Non-`void` return types (§2.1).
 - Letting the LLM change anything outside the body (new globals, new includes,
   changed signatures).
 - Mixing real code with the prompt (partly written bodies).
@@ -60,9 +60,10 @@ auto l = __llm__ [&](int y) { Add y to the total. };     // lambda
 ```
 
 Rules:
-- The text between the body's outer `{ ... }` is the prompt. Legacy comment-only
-  prompts remain accepted and have their comment markers normalized away.
-- A body without text is an error: `__llm__ function 'f' has no prompt`.
+- Non-comment text between the body's outer `{ ... }` is the prompt. C++ line and
+  block comments are ignored and are never supplied to the agent.
+- A body without prompt text is valid. The agent infers conventional behavior from
+  the name, signature, parameters, return type, and compiler context.
 - Preprocessor directives (`#if`, `#define`, …) and macro expansions inside the body
   are errors in v1. Otherwise `#if 0` could silently drop part of the prompt.
 - A lexical brace counter locates the body boundary. Braces in ordinary prompt text
@@ -74,32 +75,17 @@ Rules:
   or inside a macro expansion (v1).
 - A function can't be both `__llm__` and `constexpr` in v1 (see §8).
 
-### 2.1 Return type must be `void`
+### 2.1 Return types
 
-The parsing view gives each prompt an empty body. A non-`void` function would
-therefore have unstable return semantics before generation, so generated functions
-are restricted to `void`:
+Generated functions may use any return type accepted by C++, including `auto`,
+`decltype(auto)`, conversion operators, and lambdas with explicit or deduced return
+types. Candidate bodies are inserted into the original declaration before shadow
+compilation, so Clang checks explicit returns and performs ordinary return-type
+deduction. Constructors and destructors continue to have no return value.
 
-- Free functions, member functions and lambdas with a trailing return type must
-  declare `void` (typedefs/aliases of `void` are allowed). Anything else is
-  `error: __llm__ function must return void`.
-- `auto` and `decltype(auto)` return types are errors. An empty body would deduce
-  `void` anyway, so the user should write `void`.
-- A lambda without a trailing return type is fine: an empty body deduces `void`. Clang
-  fixes the return type as `void` **before** injecting the generated body, so a
-  generated `return x;` is an error rather than a change of type.
-- Constructors and destructors have no return type and are allowed.
-- Conversion operators and any other operator that returns a value are errors.
-  Operators that return `void` are allowed.
-- Coroutines are errors, since a coroutine can't return `void`.
-
-The LLM passes results out the ways a `void` function normally does: through
-reference/pointer parameters, `*this`, reference captures, or globals. `get_task`
-reports which of these are writable (§4).
-
-A future version could relax this with an explicit opt-in such as
-`__llm__(returns)`. It's out of scope
-for v1.
+`get_task` reports the explicit return type or says that it is deduced. It also
+reports writable reference/pointer parameters, `*this`, reference captures, and
+globals through which a function may produce additional results (§4).
 
 ---
 
@@ -116,9 +102,9 @@ of prompt text and generated-output rewrites.
 ### 3.2 Collecting the prompt
 
 After Clang identifies the body range in the parsing view, the same byte offsets select
-the prompt from the original source. Common indentation and outer blank lines are
-removed. For backward compatibility, a body consisting only of C++ comments is
-normalized by removing `//`, `/* */`, and leading ` * ` decoration.
+the prompt from the original source. C++ line and block comments are removed before
+common indentation and outer blank lines are normalized. A comment-only body
+therefore produces an empty prompt and relies on declaration-based inference.
 
 ### 3.3 Parsing and validation
 
@@ -126,10 +112,10 @@ normalized by removing `//`, `/* */`, and leading ` * ` decoration.
   (`isLLMSpecified()`).
 - `Parser::ParseLambdaExpression` accepts `__llm__` before the lambda introducer.
 - `Sema` checks the declaration when it's created (`ActOnFunctionDeclarator`, and
-  lambdas after the call operator is built): the return type must be `void`, and the
-  §2.1 exclusions apply.
+  lambdas after the call operator is built). Return checking and deduction happen
+  when the generated candidate is shadow-compiled (§2.1).
 - The empty parsing-view body supplies the declaration and exact source range. The
-  pass then collects the original prompt (§3.2), rejects an empty prompt or
+  pass then collects the original non-comment prompt (§3.2), rejects a
   preprocessor directive, and runs generation (§3.5).
 - The AST records the fact with an implicit `LLMGeneratedAttr(promptText, model,
   cacheKey)` on the `FunctionDecl`/`CXXMethodDecl`. `-ast-dump` and tooling can then
@@ -170,7 +156,7 @@ ParseLLMFunctionBody(FD):
   ctx    = LLMContext::capture(Sema, CurScope, FD)      // §4
   key    = cacheKey(prompt.text, ctx.fingerprint(), model)   // §6
   if code = cache.lookup(key): goto inject
-  if -fllm-offline: error "no cached body for __llm__ function 'f'"; empty body
+  if -fllm-offline: error "no cached body for __llm__ function 'f'"; stop
   code   = agent.run(prompt, ctx, tools = LLMToolServer(Sema, CurScope, FD))
   cache.store(key, code)
 inject:
@@ -179,11 +165,9 @@ inject:
   if errors: note "in code generated for __llm__ function declared here"
 ```
 
-To make failure survivable, if the agent gives up or errors out, clang emits
+If the agent gives up or errors out, clang emits
 `error: LLM failed to generate body for 'f'`, attaches the agent's last attempt and
-diagnostics as notes, and gives the function an empty body so compilation can go on
-and report other errors. An empty body is always valid, since the function returns
-`void`.
+diagnostics as notes, and stops before compiling or emitting rewritten source.
 
 ### 3.6 Driver: `llmc++` and the `--llm` intermediate output
 
@@ -319,8 +303,8 @@ and invalid declarations leak. v1 therefore does a **shadow compile**:
   code; later `__llm__` bodies are replaced by empty bodies, and `__llm__` is
   defined away (`-D__llm__=`).
 - Run `-fsyntax-only` in a new `CompilerInstance` with the same `CompilerInvocation`,
-  and collect diagnostics whose locations fall inside the candidate. A `return` with a
-  value is reported the normal way, because the shadow copy keeps the `void` signature.
+  and collect diagnostics whose locations fall inside the candidate. Return
+  statements are checked against the original explicit or deduced return type.
 - Speed it up with an automatic PCH of the TU prefix before the target (the same idea
   as clangd's preamble), reused across attempts.
 
@@ -353,16 +337,20 @@ follow instructions found in tool results (§9).
 
 ---
 
-## 5. Connecting clang to the LLM: an out-of-process agent
+## 5. Connecting clang to the LLM
 
-Clang shouldn't contain HTTP clients, API keys or provider SDKs. Instead:
+The prototype supports a native provider path and an external-agent protocol:
 
-- `-fllm-agent=<command>` (default `llmcpp-agent`). Clang starts it once per TU and
-  talks over **stdio using JSON-RPC**.
+- With `LLMCPP_BACKEND=anthropic`, the C++ driver calls the Anthropic Messages API
+  through `cpp-httplib` and OpenSSL. The tool-use loop calls `LLMToolServer`
+  directly, so Python and MCP transport are not needed.
+- With `LLMCPP_BACKEND=claude-code`, the driver starts `llmcpp-agent`, which launches
+  the `claude` CLI and bridges its MCP server back to the compiler.
+- `-fllm-agent=<command>` or `LLMCPP_AGENT` selects any compatible external agent.
+  Clang starts it once per TU and talks over **stdio using JSON-RPC**.
 - **Clang is an MCP server.** It exposes the tools in §4 over the MCP protocol on that
   pipe. The agent is any MCP client that can run a tool loop. Benefits:
-  - The reference agent can be a ~200-line Python script using the Anthropic SDK tool
-    runner.
+  - Provider integrations that do not belong in the compiler can remain separate.
   - Any MCP-capable agent can be plugged in, including Claude Code itself
     (`claude -p` with clang as the MCP server).
   - Tests use a **mock agent** that replays scripted tool calls and answers.
@@ -373,8 +361,8 @@ Clang shouldn't contain HTTP clients, API keys or provider SDKs. Instead:
 - Model and settings come from the agent's config (`LLMCPP_MODEL`, API key in env),
   not from compiler flags. They are reported back so they can go into the cache key.
 
-The reference agent's system prompt should include:
-- Output only body statements, and never `return` a value.
+Every backend's system prompt should include:
+- Output only body statements and follow the declared or deduced return type.
 - Use only names that the tools report as usable.
 - Always `try_compile` before `submit`.
 - No I/O, UB or side effects the prompt didn't ask for.
@@ -444,12 +432,12 @@ Mitigations:
 
 | Case | v1 behavior |
 |---|---|
-| Non-`void` return, `auto`, conversion operators | Error (§2.1). |
+| Invalid return or incompatible deduction | Rejected by shadow compilation (§2.1). |
 | Templates | Generate once for the **pattern**. The code must work for any template argument. The tools report dependent types as dependent. Instantiation errors point to the generated file. v2: optional `__llm__(per_instantiation)`. |
 | `constexpr`/`constinit` | Not allowed with `__llm__` in v1 (a simple check). v2: allowed, `try_compile` also checks that it can be evaluated at compile time. |
 | Constructors / destructors | Allowed. The member-init list is ordinary code the LLM sees through `get_task`; only the body is generated. |
 | Function-try-blocks | Not allowed with `__llm__` (v1). |
-| Coroutines | Error: a coroutine can't return `void`. |
+| Coroutines | Subject to ordinary candidate shadow-compilation rules. |
 | Virtual / override methods | Allowed. `get_task` includes the overridden declaration and its attached comment. |
 | Recursive `__llm__` calls (`f` calls `g`, both `__llm__`) | Fine: only declarations are needed. |
 | Default args / `noexcept(expr)` | Parsed normally; only the body is a prompt. |
@@ -467,8 +455,8 @@ Mitigations:
   filesystem or shell access through the compiler.
 - Generated code is untrusted. Because the cache is committed, it can be reviewed.
   `llmcpp-diff` shows changes to generated bodies between commits.
-- The API key lives only in the agent's environment. It never goes into the cache,
-  the dumps or the debug info.
+- The API key lives only in the compiler process environment (or the external
+  agent's environment). It never goes into the cache, dumps, or debug info.
 
 ---
 
@@ -479,7 +467,7 @@ llmcpp/
   PLAN.md
   llvm-project/          # git submodule pinned to a release tag (e.g. llvmorg-21.x)
   patches/               # optional: exported patch series for rebasing onto new LLVM
-  agent/                 # reference MCP-client agent (Python, Anthropic SDK)
+  agent/                 # optional Python adapter for Claude Code
   tools/llmcpp-prefill/  # parallel cache warmer
   test/
     lit/                 # clang lit tests (use mock agent)
@@ -509,12 +497,13 @@ in its body, answers `get_task`/`lookup` through the AST, calls an LLM, and writ
 format before touching clang internals.
 
 **M1: Syntax.** The `llmc++` driver name, `-fllm`, the `__llm__` keyword, parser support for
-functions/methods/constructors/destructors/lambdas, the `void` return check, prompt
+functions/methods/constructors/destructors/lambdas, return handling, prompt
 collection, the validation errors, and `LLMGeneratedAttr`. Without an agent, bodies
 stay empty and a warning is given. Lit tests cover
 every form in §2 and these cases:
 - Braces, quotes and apostrophes inside prompts.
 - An empty body.
+- Line and block comments ignored inside a body.
 - `#if` and a macro inside the body.
 - Non-`void`, `auto`, a `void` typedef, a lambda with and without a trailing return
   type, a conversion operator, a coroutine.
@@ -529,7 +518,8 @@ every form in §2 and these cases:
 FileCheck tests covering a free function, an inline member, an out-of-line member, a
 constructor, and a lambda with captures.
 
-**M3: Agent loop.** MCP-over-stdio server in clang, the mock agent, injection of
+**M3: Agent loop.** Native Anthropic tool loop, MCP-over-stdio server in clang, the
+mock agent, injection of
 tokens from a virtual buffer, a `try_compile` shadow compile, and the retry/failure
 paths. The reference Python agent. `--llm` / `EmitLLMSourceAction` writing
 `*.llm.cpp`, including the header error, multiple inputs, `-o`, and not rewriting
@@ -558,7 +548,5 @@ templates, PCH-accelerated `try_compile`, clangd behavior, and bringing in const
 3. Should `__llm__` bodies be allowed to call helpers the LLM itself declares
    (generating more than the body)? This is out of scope for v1 and would need
    declaration injection at namespace scope.
-4. Is there a clean way to allow non-`void` return types (§2.1) that keeps the file
-   valid C++?
-5. Should `*.llm.cpp` outputs (§3.6) or `.llmcache/` be the recommended thing to
+4. Should `*.llm.cpp` outputs (§3.6) or `.llmcache/` be the recommended thing to
    commit, or both?

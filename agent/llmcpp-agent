@@ -55,9 +55,9 @@ diagnostics.
 Rules:
 - Write only the statements that go between the braces: no signature, no \
 outer braces, no #include or other preprocessor directives.
-- The function returns void, so never return a value. Results leave through \
-reference or pointer parameters, *this, reference captures or globals, as \
-get_task reports.
+- Follow the return type reported by get_task. Return a compatible value for \
+non-void functions; do not return a value from void functions, constructors, \
+or destructors.
 - Use only names that are declared and usable here. You cannot add includes \
 or declarations outside the body; if a header you'd like isn't included, do \
 without it.
@@ -65,7 +65,8 @@ without it.
 structure: follow it, fill in the TODOs, and fix only what doesn't compile or \
 is plainly wrong.
 - Do exactly what the prompt asks, with no extra output, logging or side \
-effects. If the prompt asks for nothing, submit an empty body.
+effects. If the prompt is empty, infer the conventional implementation from \
+the function's name, signature, parameters, return type, and compiler context.
 - Prefer simple, idiomatic, warning-free code for the C++ standard in use.
 - Always try_compile before submit and fix every error and warning. If submit \
 is rejected, fix the problems and submit again.

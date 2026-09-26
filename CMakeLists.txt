@@ -15,8 +15,11 @@ set(LLMCPP_LLVM_VERSION 19 CACHE STRING "LLVM/Clang major version")
 set(LLMCPP_DEPS_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/deps/root")
 set(LLMCPP_DEPS_LIBDIR "${LLMCPP_DEPS_ROOT}/usr/lib/x86_64-linux-gnu")
 set(LLMCPP_CATCH2_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/deps/catch2/src")
+set(LLMCPP_CPPHTTPLIB_INCLUDE_DIR
+    "${CMAKE_CURRENT_SOURCE_DIR}/deps/cpp-httplib/include")
 if(NOT EXISTS "${LLMCPP_DEPS_ROOT}/.fetched-${LLMCPP_LLVM_VERSION}" OR
-   NOT EXISTS "${LLMCPP_CATCH2_SOURCE_DIR}/CMakeLists.txt")
+   NOT EXISTS "${LLMCPP_CATCH2_SOURCE_DIR}/CMakeLists.txt" OR
+   NOT EXISTS "${LLMCPP_CPPHTTPLIB_INCLUDE_DIR}/httplib.h")
   message(FATAL_ERROR
     "Dependencies are missing. Run ./fetch-deps.sh before configuring llmcpp.")
 endif()
@@ -46,10 +49,18 @@ find_file(LLMCPP_LLVM_LIBRARY
 if(NOT LLMCPP_CLANG_CPP_LIBRARY OR NOT LLMCPP_LLVM_LIBRARY)
   message(FATAL_ERROR "LLVM/Clang runtime libraries were not found")
 endif()
+cmake_path(IS_PREFIX LLMCPP_DEPS_ROOT "${LLMCPP_LLVM_LIBRARY}" NORMALIZE
+           LLMCPP_LLVM_IS_BUNDLED)
 
 find_package(Threads REQUIRED)
+set(OPENSSL_ROOT_DIR "${LLMCPP_DEPS_ROOT}/usr")
+set(OPENSSL_INCLUDE_DIR "${LLMCPP_DEPS_ROOT}/usr/include")
+set(OPENSSL_SSL_LIBRARY "${LLMCPP_DEPS_LIBDIR}/libssl.so")
+set(OPENSSL_CRYPTO_LIBRARY "${LLMCPP_DEPS_LIBDIR}/libcrypto.so")
+find_package(OpenSSL REQUIRED COMPONENTS SSL Crypto)
 
 add_executable(llmcxx
+  src/llmcpp/agent/anthropic_session.cpp
   src/llmcpp/agent/agent_session.cpp
   src/llmcpp/agent/tool_server.cpp
   src/llmcpp/compiler/ast_text.cpp
@@ -88,8 +99,11 @@ target_compile_definitions(llmcxx PRIVATE
   __STDC_FORMAT_MACROS
   __STDC_LIMIT_MACROS
   LLMCPP_LLVM_VERSION="${LLMCPP_LLVM_VERSION}"
+  CPPHTTPLIB_OPENSSL_SUPPORT
 )
 target_include_directories(llmcxx SYSTEM PRIVATE
+  "${LLMCPP_CPPHTTPLIB_INCLUDE_DIR}"
+  "${LLMCPP_DEPS_ROOT}/usr/include/x86_64-linux-gnu"
   "${LLMCPP_LLVM_INCLUDE_DIR}"
   "${LLMCPP_LLVM_C_INCLUDE_DIR}"
   "${LLMCPP_CLANG_INCLUDE_DIR}"
@@ -98,6 +112,8 @@ target_include_directories(llmcxx PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include")
 target_link_libraries(llmcxx PRIVATE
   "${LLMCPP_CLANG_CPP_LIBRARY}"
   "${LLMCPP_LLVM_LIBRARY}"
+  OpenSSL::SSL
+  OpenSSL::Crypto
   Threads::Threads
 )
 
@@ -119,7 +135,7 @@ install(PROGRAMS "${CMAKE_CURRENT_SOURCE_DIR}/agent/llmcpp-agent" DESTINATION bi
 install(FILES "${LLMCPP_CLANG_CPP_LIBRARY}" DESTINATION lib)
 install(DIRECTORY "${LLMCPP_CLANG_RESOURCE_DIR}/"
         DESTINATION "lib/clang/${LLMCPP_LLVM_VERSION}/include")
-if(LLMCPP_LLVM_LIBRARY MATCHES "^${LLMCPP_DEPS_ROOT}")
+if(LLMCPP_LLVM_IS_BUNDLED)
   install(FILES "${LLMCPP_LLVM_LIBRARY}" DESTINATION lib)
 endif()
 
@@ -135,7 +151,7 @@ add_custom_command(TARGET llmcxx POST_BUILD
           "${CMAKE_BINARY_DIR}/lib/clang/${LLMCPP_LLVM_VERSION}/include"
   VERBATIM
 )
-if(LLMCPP_LLVM_LIBRARY MATCHES "^${LLMCPP_DEPS_ROOT}")
+if(LLMCPP_LLVM_IS_BUNDLED)
   add_custom_command(TARGET llmcxx POST_BUILD
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different
             "${LLMCPP_LLVM_LIBRARY}"
@@ -152,6 +168,9 @@ if(BUILD_TESTING)
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
   )
   target_compile_features(llmcpp-tests PRIVATE cxx_std_17)
+  target_include_directories(llmcpp-tests SYSTEM PRIVATE
+    "${LLMCPP_CPPHTTPLIB_INCLUDE_DIR}"
+  )
   target_link_libraries(llmcpp-tests PRIVATE Catch2::Catch2WithMain)
   target_compile_definitions(llmcpp-tests PRIVATE
     LLMCXX_PATH="$<TARGET_FILE:llmcxx>"

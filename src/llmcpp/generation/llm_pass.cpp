@@ -40,7 +40,7 @@ namespace llmcpp
 
         // Run the llm pass against one source file and return rewritten source.
         data::PassResult run_llm_pass(llvm::ArrayRef<const char *> cc1Args,
-                                      const data::Options &opts, bool suppressWarnings)
+                                      const data::Options &opts)
         {
             data::PassResult result;
             auto invocation = std::make_shared<CompilerInvocation>();
@@ -74,9 +74,7 @@ namespace llmcpp
             invocation->getPreprocessorOpts().addRemappedFile(
                 mainFile,
                 llvm::MemoryBuffer::getMemBufferCopy(parseableSource, mainFile).release());
-            if (suppressWarnings) {
-                invocation->getDiagnosticOpts().IgnoreWarnings = true;
-            }
+            invocation->getDiagnosticOpts().IgnoreWarnings = true;
 
             CompilerInstance compiler;
             compiler.getPCHContainerOperations()->registerWriter(

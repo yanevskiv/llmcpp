@@ -6,9 +6,7 @@
 #define LLMCPP_TEXT_H
 
 #include "llmcpp/data/edit.h"
-#include "llmcpp/data/prompt_comment.h"
 
-#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
 
 #include <string>
@@ -27,13 +25,6 @@ namespace llmcpp
          * @return Rewritten source text.
          */
         std::string apply_edits(llvm::StringRef source, std::vector<data::Edit> &edits);
-        /**
-         * Normalize a legacy comment-only prompt.
-         *
-         * @param comments Ordered comment fragments from the prompt body.
-         * @return Prompt text without outer markers or common indentation.
-         */
-        std::string normalize_prompt(llvm::ArrayRef<data::PromptComment> comments);
         /**
          * Remove trailing whitespace, outer blank lines, and common indentation.
          *

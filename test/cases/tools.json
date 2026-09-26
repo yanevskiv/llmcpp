@@ -17,7 +17,7 @@
     ],
     "main::(lambda #1)": [
       {"tool": "get_context"},
-      {"tool": "submit", "arguments": {"body": "return hits;"}},
+      {"tool": "submit", "arguments": {"body": "return not_declared;"}},
       {"tool": "submit", "arguments": {"body": "++hits;"}}
     ]
   }
