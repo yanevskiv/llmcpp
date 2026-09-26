@@ -1,2 +1,4 @@
 /build/
-/a.out
+/deps/
+a.out
+main

@@ -98,3 +98,9 @@ Install the hooks with `pre-commit install`. The hooks run clang-format in
 check mode, clang-tidy naming checks, and `scripts/check_style.py` for
 filename, file-header, indentation, Doxygen-form, and body-comment rules. Run
 all checks manually with `pre-commit run --all-files`.
+
+## Repository documentation
+
+- Do not use emojis or em dashes in project Markdown documentation.
+- Use GitHub alert callouts only when they make an important note, warning, or
+  limitation easier to identify.

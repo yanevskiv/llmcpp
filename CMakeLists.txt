@@ -10,25 +10,15 @@ endif()
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 include(CTest)
-include(FetchContent)
-if(POLICY CMP0135)
-  cmake_policy(SET CMP0135 NEW)
-endif()
 
 set(LLMCPP_LLVM_VERSION 19 CACHE STRING "LLVM/Clang major version")
-set(LLMCPP_DEPS_ROOT "${CMAKE_BINARY_DIR}/deps/root")
+set(LLMCPP_DEPS_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/deps/root")
 set(LLMCPP_DEPS_LIBDIR "${LLMCPP_DEPS_ROOT}/usr/lib/x86_64-linux-gnu")
-
-execute_process(
-  COMMAND "${CMAKE_COMMAND}" -E env
-          "LLVM_VER=${LLMCPP_LLVM_VERSION}"
-          "LLMCPP_DEPS_DIR=${CMAKE_BINARY_DIR}/deps"
-          "${CMAKE_CURRENT_SOURCE_DIR}/scripts/fetch-deps.sh"
-  WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-  RESULT_VARIABLE LLMCPP_FETCH_RESULT
-)
-if(NOT LLMCPP_FETCH_RESULT EQUAL 0)
-  message(FATAL_ERROR "Failed to fetch LLVM/Clang ${LLMCPP_LLVM_VERSION} dependencies")
+set(LLMCPP_CATCH2_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/deps/catch2/src")
+if(NOT EXISTS "${LLMCPP_DEPS_ROOT}/.fetched-${LLMCPP_LLVM_VERSION}" OR
+   NOT EXISTS "${LLMCPP_CATCH2_SOURCE_DIR}/CMakeLists.txt")
+  message(FATAL_ERROR
+    "Dependencies are missing. Run ./fetch-deps.sh before configuring llmcpp.")
 endif()
 
 set(LLMCPP_LLVM_INCLUDE_DIR
@@ -128,7 +118,7 @@ install(TARGETS llmcxx RUNTIME DESTINATION bin)
 install(PROGRAMS "${CMAKE_CURRENT_SOURCE_DIR}/agent/llmcpp-agent" DESTINATION bin)
 install(FILES "${LLMCPP_CLANG_CPP_LIBRARY}" DESTINATION lib)
 install(DIRECTORY "${LLMCPP_CLANG_RESOURCE_DIR}/"
-        DESTINATION "lib/clang/${LLMCPP_LLVM_VERSION}")
+        DESTINATION "lib/clang/${LLMCPP_LLVM_VERSION}/include")
 if(LLMCPP_LLVM_LIBRARY MATCHES "^${LLMCPP_DEPS_ROOT}")
   install(FILES "${LLMCPP_LLVM_LIBRARY}" DESTINATION lib)
 endif()
@@ -155,13 +145,7 @@ if(LLMCPP_LLVM_LIBRARY MATCHES "^${LLMCPP_DEPS_ROOT}")
 endif()
 
 if(BUILD_TESTING)
-  find_package(Catch2 3 QUIET)
-  if(NOT Catch2_FOUND)
-    FetchContent_Declare(Catch2
-      URL https://github.com/catchorg/Catch2/archive/refs/tags/v3.8.1.tar.gz
-    )
-    FetchContent_MakeAvailable(Catch2)
-  endif()
+  add_subdirectory("${LLMCPP_CATCH2_SOURCE_DIR}" "${CMAKE_BINARY_DIR}/catch2" EXCLUDE_FROM_ALL)
 
   add_executable(llmcpp-tests test/integration_tests.cpp)
   set_target_properties(llmcpp-tests PROPERTIES
@@ -177,11 +161,7 @@ if(BUILD_TESTING)
   add_dependencies(llmcpp-tests llmcxx)
   install(TARGETS llmcpp-tests RUNTIME DESTINATION bin)
 
-  if(DEFINED catch2_SOURCE_DIR)
-    list(APPEND CMAKE_MODULE_PATH "${catch2_SOURCE_DIR}/extras")
-  elseif(DEFINED Catch2_DIR)
-    list(APPEND CMAKE_MODULE_PATH "${Catch2_DIR}")
-  endif()
+  list(APPEND CMAKE_MODULE_PATH "${LLMCPP_CATCH2_SOURCE_DIR}/extras")
   include(Catch)
   catch_discover_tests(llmcpp-tests
     WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
