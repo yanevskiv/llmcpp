@@ -39,6 +39,8 @@ namespace llmcpp
             std::string m_cache_salt;
             /** Explicit cache identity or unambiguous hexadecimal prefix supplied by the user. */
             std::string m_cache_key;
+            /** Whether the modifier overrides the external agent command. */
+            bool m_agent_override = false;
             /** Digest of compilation arguments and visible source contents. */
             std::string m_context_digest;
             /** Source offset of the prompt body's opening brace. */

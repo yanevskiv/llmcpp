@@ -256,7 +256,8 @@ namespace llmcpp
                         return false;
                     }
                     StringRef literal = text.slice(tokens[i + 1].m_begin, tokens[i + 1].m_end);
-                    if (name == "model" || name == "cache" || name == "key" || name == "backend") {
+                    if (name == "model" || name == "cache" || name == "key" || name == "backend" ||
+                        name == "agent") {
                         auto value = json::parse(literal);
                         if (!value) {
                             llvm::consumeError(value.takeError());
@@ -270,6 +271,13 @@ namespace llmcpp
                         }
                         if (name == "model") {
                             target.m_options.m_model = string->str();
+                        } else if (name == "agent") {
+                            if (string->trim().empty()) {
+                                error = "expected a nonblank command for __llm__ option 'agent'";
+                                return false;
+                            }
+                            target.m_options.m_agent_command = string->str();
+                            target.m_agent_override = true;
                         } else if (name == "backend") {
                             if (*string != "anthropic" && *string != "openai" &&
                                 *string != "codex" && *string != "claude") {
@@ -828,11 +836,13 @@ namespace llmcpp
             t.m_context_digest = contextDigest;
             std::string policy =
                 formatv("{0}", json::Value(agent_generation_settings(t.m_options))).str();
-            t.m_key = sha256_hex(std::string(CacheVersion) + "\n" + t.m_name + "\n" +
-                                 t.m_signature + "\n" + t.m_prompt_text + "\n" + policy + "\n" +
-                                 t.m_cache_salt + "\n" + sha256_hex(t.m_options.m_system_prompt) +
-                                 "\n" + sha256_hex(t.m_options.m_agent_config) + "\n" +
-                                 t.m_options.m_backend + "\n" + contextDigest);
+            t.m_key =
+                sha256_hex(std::string(CacheVersion) + "\n" + t.m_name + "\n" + t.m_signature +
+                           "\n" + t.m_prompt_text + "\n" + policy + "\n" + t.m_cache_salt + "\n" +
+                           sha256_hex(t.m_options.m_system_prompt) + "\n" +
+                           sha256_hex(t.m_options.m_agent_config) + "\n" + t.m_options.m_backend +
+                           "\n" + contextDigest +
+                           (!t.m_agent_override ? "" : "\nagent:" + t.m_options.m_agent_command));
             if (!t.m_cache_key.empty()) {
                 t.m_key = t.m_cache_key;
             }

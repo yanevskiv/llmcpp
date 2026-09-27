@@ -93,6 +93,9 @@ options. `LLMCPP_MODEL` supplies a model default before command-line parsing.
 `backend("codex")` overrides the backend for one function. Accepted names are
 `anthropic`, `openai`, `codex`, and `claude`; a configured custom agent still takes
 precedence over native API transports.
+`agent("python3 my_agent.py")` overrides the external agent command for one
+function, taking precedence over both driver agent settings and native backends.
+The command participates in the computed cache identity.
 `no_cache` disables reads and writes for one target. `cache("scores-v1")`
 enables caching and adds a salt to its key; the string is not a filename.
 These two options cannot be combined. Numeric limits must be positive integer

@@ -651,6 +651,28 @@ TEST_CASE("agent failures are reported", "[failures]")
                        "last rejected attempt", "use of undeclared identifier 'not_declared'"});
 }
 
+// Launch a function's agent instead of the driver agent or native backend.
+TEST_CASE("agent modifier overrides driver defaults", "[generation][options]")
+{
+    llmcpp::test::TestWorkspace work;
+    std::ofstream(work.path() / "agent.cpp")
+        << "__llm__(agent(\"" << MOCK_AGENT_PATH << "\")) int answer() { Return 42. }\n";
+    auto result = work.llmcpp(
+        {"--llm", "-fllm-no-cache", "-fllm-backend=openai", "-fllm-agent=/nonexistent/agent",
+         "agent.cpp"},
+        {{"LLMCPP_AGENT", "/nonexistent/environment-agent"},
+         {"LLMCPP_MOCK_SCRIPT", (work.path() / "json/test_return_values.json").string()}});
+    INFO(result.m_err);
+    REQUIRE(result.m_status == 0);
+    llmcpp::test::check_contains(llmcpp::test::read_file(work.path() / "agent.llm.cpp"),
+                                 {"return 42;", MOCK_AGENT_PATH});
+    for (const char *options : {"agent(\"\")", "agent(\"   \")", "agent(2)"}) {
+        std::ofstream(work.path() / "agent.cpp") << "__llm__(" << options << ") int answer() {}\n";
+        result = work.llmcpp({"-fllm-dump-context", "agent.cpp"});
+        REQUIRE(result.m_status != 0);
+    }
+}
+
 // Select a function's backend ahead of environment and command-line defaults.
 TEST_CASE("backend modifier overrides driver defaults", "[generation][options]")
 {
