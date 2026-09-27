@@ -174,6 +174,7 @@ numeric limits must be positive integer literals.
 | `__llm__(cache("salt"))` | Enable caching and add a salt to this function's cache key; the string is not a filename. |
 | `__llm__(max_attempts(2))` | Override the rejected-submission limit for this function. |
 | `__llm__(timeout(120))` | Override the generation deadline in seconds for this function. |
+| `__llm__(dump)` | Print this function's accepted body, including on cache hits. |
 
 ### Macros
 

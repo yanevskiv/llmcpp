@@ -615,6 +615,26 @@ TEST_CASE("value-returning and empty targets infer behavior without body comment
     REQUIRE(run.m_status == 0);
 }
 
+// Print only bodies whose targets request dump diagnostics.
+TEST_CASE("dump modifier is scoped to one function", "[generation][diagnostics]")
+{
+    llmcpp::test::TestWorkspace work;
+    std::ofstream(work.path() / "diagnostics.cpp")
+        << "__llm__(dump) int answer() { Return 42. }\n"
+        << "__llm__ int increment(int x) { Return x plus one. }\n";
+    std::vector<std::string> args{"--llm", "-fllm-cache-dir=cache", "diagnostics.cpp"};
+    auto result = work.mock("json/test_return_values.json", args);
+    INFO(result.m_err);
+    REQUIRE(result.m_status == 0);
+    llmcpp::test::check_contains(result.m_err, {"body of 'answer'", "return 42;"});
+    CHECK(result.m_err.find("body of 'increment'") == std::string::npos);
+    args.push_back("-fllm-offline");
+    result = work.llmcpp(args);
+    REQUIRE(result.m_status == 0);
+    llmcpp::test::check_contains(result.m_err, {"body of 'answer'", "return 42;"});
+    CHECK(result.m_err.find("body of 'increment'") == std::string::npos);
+}
+
 // Verify that successful generation is silent unless verbose output is requested.
 TEST_CASE("successful generation is silent by default", "[generation][diagnostics]")
 {

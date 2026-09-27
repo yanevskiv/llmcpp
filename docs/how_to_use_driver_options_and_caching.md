@@ -123,6 +123,8 @@ and has the same effect.
 ## Control diagnostics
 
 Successful compilation is silent by default. Warnings and errors are still reported.
+Use `__llm__(dump)` to print just one function's accepted body, including when
+it comes from cache.
 
 | Option | Effect |
 | --- | --- |

@@ -249,6 +249,8 @@ namespace llmcpp
                     target.m_options.m_use_cache = false;
                 } else if (name == "offline") {
                     target.m_options.m_offline = true;
+                } else if (name == "dump") {
+                    target.m_options.m_dump = true;
                 } else {
                     if (i + 2 >= end || !token_is(text, tokens[i], "(") ||
                         !token_is(text, tokens[i + 2], ")")) {
@@ -947,7 +949,7 @@ namespace llmcpp
     // Print a target's generated implementation for diagnostics.
     void GenerationPass::dump(const data::DataGenerationTarget &t) const
     {
-        if (m_opts.m_dump) {
+        if (t.m_options.m_dump) {
             llvm::errs() << "llmc++: body of '" << t.m_name << "':\n"
                          << reindent(t.m_code, "    ") << "\n";
         }
