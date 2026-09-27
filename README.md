@@ -175,6 +175,7 @@ numeric limits must be positive integer literals.
 | `__llm__(max_attempts(2))` | Override the rejected-submission limit for this function. |
 | `__llm__(timeout(120))` | Override the generation deadline in seconds for this function. |
 | `__llm__(dump)` | Print this function's accepted body, including on cache hits. |
+| `__llm__(verbose)` | Print progress and agent tool diagnostics for this function. |
 
 ### Macros
 

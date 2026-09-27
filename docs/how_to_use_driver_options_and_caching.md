@@ -125,6 +125,7 @@ and has the same effect.
 Successful compilation is silent by default. Warnings and errors are still reported.
 Use `__llm__(dump)` to print just one function's accepted body, including when
 it comes from cache.
+Use `__llm__(verbose)` for that function's progress and agent tool diagnostics.
 
 | Option | Effect |
 | --- | --- |
