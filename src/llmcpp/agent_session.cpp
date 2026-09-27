@@ -295,7 +295,7 @@ namespace llmcpp
                 {"llmcppCapabilities",
                  json::Array{"system_prompt", "model", "agent_config", "effective_settings"}},
                 {"capabilities", json::Object{{"tools", json::Object{}}}},
-                {"serverInfo", json::Object{{"name", "llmc++"}, {"version", "0.1-prototype"}}}};
+                {"serverInfo", json::Object{{"name", "llmc++"}, {"version", LLMCPP_VERSION}}}};
         } else if (method == "tools/list") {
             response["result"] = json::Object{{"tools", tool_definitions()}};
         } else if (method == "ping") {

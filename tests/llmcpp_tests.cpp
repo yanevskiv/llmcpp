@@ -21,6 +21,21 @@
 // Namespace alias for test filesystem operations.
 namespace fs = std::filesystem;
 
+// Verify that the compiler and bundled agent report their own release versions.
+TEST_CASE("compiler and agent report independent versions", "[options]")
+{
+    llmcpp::test::TestWorkspace work;
+    auto compiler = work.llmcpp({"--version"}, {{"LLMCPP_TIMEOUT", "invalid"}});
+    CHECK(compiler.m_status == 0);
+    CHECK(compiler.m_out == "llmc++ 0.0.1\n");
+    CHECK(compiler.m_err.empty());
+
+    auto agent = work.run(LLMCPP_AGENT_PATH, {"--version"});
+    CHECK(agent.m_status == 0);
+    CHECK(agent.m_out == "llmcpp-agent 0.0.1\n");
+    CHECK(agent.m_err.empty());
+}
+
 // Verify that driver help includes both Clang and llmcpp options without configuration.
 TEST_CASE("driver help includes generation options", "[options]")
 {

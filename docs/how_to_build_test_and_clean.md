@@ -67,10 +67,10 @@ deps/
   catch2/               Catch2 source
   cpp-httplib/          HTTP header
 build/
-  out/                  CMake cache, objects, and generated build files
+  out/                  CMake cache, objects, generated files, and test executable
   docs/                 documentation build tree and HTML
   install/
-    bin/                 llmc++, llmcpp-agent, and llmcpp-tests
+    bin/                 llmc++ and llmcpp-agent
     lib/                 Clang/LLVM runtime libraries and resource headers
     share/doc/llmcpp/     HTML documentation
     share/man/man1/      compiler and agent command references

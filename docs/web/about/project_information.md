@@ -1,7 +1,8 @@
 # Project Information
 
 The project is named **llmcpp**; its compiler executable is **llmc++**. It is
-an experimental Clang-based project built with C++20, currently at version 0.1.
+an experimental Clang-based project built with C++20. `llmc++` and the bundled
+`llmcpp-agent` have independent versions; both currently start at 0.0.1.
 
 ## Tools and platforms
 
