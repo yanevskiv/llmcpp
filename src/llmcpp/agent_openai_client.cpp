@@ -1,9 +1,9 @@
 /*
- * C++ file for direct Anthropic Messages API generation.
+ * C++ file for direct OpenAI Responses API generation.
  */
 
 // Project headers for native generation and compiler-context tools.
-#include "llmcpp/agent_anthropic_client.h"
+#include "llmcpp/agent_openai_client.h"
 #include "llmcpp/agent_prompt.h"
 #include "llmcpp/agent_session.h"
 
@@ -30,7 +30,6 @@ using Clock = std::chrono::steady_clock;
 
 namespace
 {
-
     // Return a nonempty environment setting, or an empty string.
     std::string environment(StringRef name)
     {
@@ -54,25 +53,25 @@ namespace
         size_t scheme = url.find("://");
         if (scheme == StringRef::npos ||
             (url.take_front(scheme) != "http" && url.take_front(scheme) != "https")) {
-            error = "ANTHROPIC_BASE_URL must start with http:// or https://";
+            error = "OPENAI_BASE_URL must start with http:// or https://";
             return false;
         }
         size_t slash = url.find('/', scheme + 3);
         origin = url.take_front(slash).str();
         prefix = slash == StringRef::npos ? "" : url.drop_front(slash).rtrim('/').str();
         if (origin.size() == scheme + 3) {
-            error = "ANTHROPIC_BASE_URL has no host";
+            error = "OPENAI_BASE_URL has no host";
             return false;
         }
         return true;
     }
 
     // Own the HTTP configuration and retry loop for one generation request.
-    class AnthropicHttpClient
+    class OpenAIHttpClient
     {
     public:
-        AnthropicHttpClient(std::string baseUrl, std::string apiKey, unsigned timeoutSeconds,
-                            bool verbose, std::string &error)
+        OpenAIHttpClient(std::string baseUrl, std::string apiKey, unsigned timeoutSeconds,
+                         bool verbose, std::string &error)
             : m_api_key(std::move(apiKey))
             , m_deadline(Clock::now() + std::chrono::seconds(timeoutSeconds))
             , m_verbose(verbose)
@@ -96,13 +95,13 @@ namespace
         bool post(const json::Object &request, json::Object &response, std::string &error)
         {
             std::string body = formatv("{0}", json::Value(json::Object(request))).str();
-            httplib::Headers headers{{"x-api-key", m_api_key}, {"anthropic-version", "2023-06-01"}};
+            httplib::Headers headers{{"Authorization", "Bearer " + m_api_key}};
 
             for (unsigned attempt = 0; attempt != 6; ++attempt) {
                 auto remaining =
                     std::chrono::duration_cast<std::chrono::seconds>(m_deadline - Clock::now());
                 if (remaining <= std::chrono::seconds::zero()) {
-                    error = "Anthropic API request timed out";
+                    error = "OpenAI API request timed out";
                     return false;
                 }
                 m_client->set_connection_timeout(remaining);
@@ -110,16 +109,16 @@ namespace
                 m_client->set_write_timeout(remaining);
 
                 httplib::Result result =
-                    m_client->Post(m_prefix + "/v1/messages", headers, body, "application/json");
+                    m_client->Post(m_prefix + "/v1/responses", headers, body, "application/json");
                 if (result && result->status >= 200 && result->status < 300) {
                     Expected<json::Value> parsed = json::parse(result->body);
                     if (!parsed) {
-                        error = "invalid JSON from Anthropic API: " + toString(parsed.takeError());
+                        error = "invalid JSON from OpenAI API: " + toString(parsed.takeError());
                         return false;
                     }
                     json::Object *object = parsed->getAsObject();
                     if (!object) {
-                        error = "Anthropic API returned a non-object JSON response";
+                        error = "OpenAI API returned a non-object JSON response";
                         return false;
                     }
                     response = std::move(*object);
@@ -127,12 +126,12 @@ namespace
                 }
 
                 int status = result ? result->status : 0;
-                bool transient = !result || status == 429 || status == 500 || status == 502 ||
-                                 status == 503 || status == 504 || status == 529;
+                bool transient = !result || status == 408 || status == 409 || status == 429 ||
+                                 status == 500 || status == 502 || status == 503 || status == 504;
                 if (transient && attempt != 5) {
                     unsigned delay = std::min(60U, 2U << attempt);
                     if (m_verbose) {
-                        errs() << "llmc++: Anthropic "
+                        errs() << "llmc++: OpenAI "
                                << (result ? formatv("HTTP {0}", status).str()
                                           : httplib::to_string(result.error()))
                                << ", retrying in " << delay << "s\n";
@@ -143,15 +142,15 @@ namespace
                 }
 
                 if (result) {
-                    error = formatv("Anthropic API error {0}: {1}", status,
+                    error = formatv("OpenAI API error {0}: {1}", status,
                                     StringRef(result->body).take_front(500))
                                 .str();
                 } else {
-                    error = "cannot reach the Anthropic API: " + httplib::to_string(result.error());
+                    error = "cannot reach the OpenAI API: " + httplib::to_string(result.error());
                 }
                 return false;
             }
-            error = "Anthropic API request failed";
+            error = "OpenAI API request failed";
             return false;
         }
 
@@ -163,8 +162,8 @@ namespace
         bool m_verbose;
     };
 
-    // Convert MCP-flavored schemas to the names expected by the Messages API.
-    json::Value anthropic_tools()
+    // Convert MCP-flavored schemas to Responses API function tools.
+    json::Value openai_tools()
     {
         json::Array definitions = llmcpp::tool_definitions();
         json::Array converted;
@@ -173,73 +172,75 @@ namespace
             if (!definition) {
                 continue;
             }
-            json::Object tool;
-            tool["name"] = definition->getString("name").value_or("");
-            tool["description"] = definition->getString("description").value_or("");
+            json::Object tool{{"type", "function"},
+                              {"name", definition->getString("name").value_or("")},
+                              {"description", definition->getString("description").value_or("")},
+                              {"strict", false}};
             if (json::Value *schema = definition->get("inputSchema")) {
-                tool["input_schema"] = *schema;
+                tool["parameters"] = *schema;
             } else {
-                tool["input_schema"] = json::Object{{"type", "object"}};
+                tool["parameters"] = json::Object{{"type", "object"}};
             }
             converted.emplace_back(std::move(tool));
         }
         return json::Value(std::move(converted));
     }
-
 }
 
-// Namespace for the native Anthropic session implementation.
+// Namespace for the native OpenAI session implementation.
 namespace llmcpp
 {
-
-    // Select native Anthropic unless an external-agent override takes precedence.
-    bool use_native_anthropic(const data::DataGenerationOptions &opts)
+    // Select native OpenAI unless an external-agent override takes precedence.
+    bool use_native_openai(const data::DataGenerationOptions &opts)
     {
         if (!opts.m_agent_command.empty() || !environment("LLMCPP_AGENT").empty()) {
             return false;
         }
         std::string backend = environment("LLMCPP_BACKEND");
-        if (backend == "anthropic") {
+        if (backend == "openai") {
             return true;
         }
-        return (backend.empty() || backend == "auto") && !environment("ANTHROPIC_API_KEY").empty();
+        return (backend.empty() || backend == "auto") && !environment("OPENAI_API_KEY").empty();
     }
 
-    // Run the Messages API tool-use loop in the compiler process.
-    bool generate_anthropic(const data::DataGenerationOptions &opts, json::Object task,
-                            AgentToolHandler &tools, data::DataAgentOutcome &result,
-                            std::string &error)
+    // Run the Responses API function-calling loop in the compiler process.
+    bool generate_openai(const data::DataGenerationOptions &opts, json::Object task,
+                         AgentToolHandler &tools, data::DataAgentOutcome &result,
+                         std::string &error)
     {
-        std::string apiKey = environment("ANTHROPIC_API_KEY");
+        std::string apiKey = environment("OPENAI_API_KEY");
         if (apiKey.empty()) {
-            error = "LLMCPP_BACKEND=anthropic needs ANTHROPIC_API_KEY";
+            error = "LLMCPP_BACKEND=openai needs OPENAI_API_KEY";
             return false;
         }
         std::string model = environment("LLMCPP_MODEL");
         if (model.empty()) {
-            model = "claude-opus-5";
+            model = "gpt-6-astra";
         }
-        std::string baseUrl = environment("ANTHROPIC_BASE_URL");
+        std::string baseUrl = environment("OPENAI_BASE_URL");
         if (baseUrl.empty()) {
-            baseUrl = "https://api.anthropic.com";
+            baseUrl = "https://api.openai.com";
         }
-        AnthropicHttpClient client(baseUrl, std::move(apiKey), opts.m_timeout_seconds,
-                                   opts.m_verbose, error);
+        OpenAIHttpClient client(baseUrl, std::move(apiKey), opts.m_timeout_seconds, opts.m_verbose,
+                                error);
         if (!client) {
             return false;
         }
 
-        json::Value toolsValue = anthropic_tools();
-        json::Value messagesValue(
-            json::Array{json::Object{{"role", "user"}, {"content", agent_task_message(task)}}});
+        json::Value toolsValue = openai_tools();
+        json::Value inputValue(agent_task_message(task));
+        std::string previousResponseId;
         unsigned maxTurns = opts.m_max_tool_calls + 5;
 
         for (unsigned turn = 0; turn != maxTurns; ++turn) {
             json::Object request{{"model", model},
-                                 {"max_tokens", 16000},
-                                 {"system", agent_system_prompt()},
+                                 {"instructions", agent_system_prompt()},
                                  {"tools", toolsValue},
-                                 {"messages", messagesValue}};
+                                 {"input", inputValue},
+                                 {"max_output_tokens", 16000}};
+            if (!previousResponseId.empty()) {
+                request["previous_response_id"] = previousResponseId;
+            }
             json::Object response;
             if (!client.post(request, response, error)) {
                 return false;
@@ -247,31 +248,45 @@ namespace llmcpp
             if (std::optional<StringRef> reported = response.getString("model")) {
                 model = reported->str();
             }
-            json::Array *content = response.getArray("content");
-            if (!content) {
-                error = "Anthropic API response has no content array";
+            std::optional<StringRef> responseId = response.getString("id");
+            if (!responseId) {
+                error = "OpenAI API response has no id";
+                return false;
+            }
+            previousResponseId = responseId->str();
+            json::Array *output = response.getArray("output");
+            if (!output) {
+                error = "OpenAI API response has no output array";
                 return false;
             }
 
-            json::Array toolResults;
+            json::Array toolOutputs;
             bool usedTool = false;
             bool accepted = false;
-            for (const json::Value &blockValue : *content) {
-                const json::Object *block = blockValue.getAsObject();
-                if (!block || block->getString("type").value_or("") != "tool_use") {
+            for (const json::Value &itemValue : *output) {
+                const json::Object *item = itemValue.getAsObject();
+                if (!item || item->getString("type").value_or("") != "function_call") {
                     continue;
                 }
                 usedTool = true;
-                StringRef id = block->getString("id").value_or("");
-                StringRef name = block->getString("name").value_or("");
+                StringRef callId = item->getString("call_id").value_or("");
+                StringRef name = item->getString("name").value_or("");
+                StringRef encodedArguments = item->getString("arguments").value_or("{}");
                 json::Object noArguments;
-                const json::Object *arguments = block->getObject("input");
-                if (!arguments) {
-                    arguments = &noArguments;
+                json::Object *arguments = nullptr;
+                Expected<json::Value> parsedArguments = json::parse(encodedArguments);
+                if (parsedArguments) {
+                    arguments = parsedArguments->getAsObject();
                 }
 
                 data::DataToolResult toolResult;
-                if (++result.m_tool_calls > opts.m_max_tool_calls) {
+                if (!arguments) {
+                    if (!parsedArguments) {
+                        consumeError(parsedArguments.takeError());
+                    }
+                    arguments = &noArguments;
+                    toolResult = {"function arguments were not a JSON object", true};
+                } else if (++result.m_tool_calls > opts.m_max_tool_calls) {
                     toolResult = {
                         formatv("tool call limit ({0}) reached; stop now", opts.m_max_tool_calls)
                             .str(),
@@ -287,21 +302,15 @@ namespace llmcpp
                            << truncated(toolResult.m_text, 160) << "\n";
                 }
                 accepted |= name == "submit" && !toolResult.m_is_error;
-                toolResults.emplace_back(json::Object{
-                    {"type", "tool_result"},
-                    {"tool_use_id", id},
-                    {"content", toolResult.m_text.empty() ? "(empty)" : toolResult.m_text},
-                    {"is_error", toolResult.m_is_error}});
+                std::string outputText = toolResult.m_text.empty() ? "(empty)" : toolResult.m_text;
+                if (toolResult.m_is_error) {
+                    outputText = "[error] " + outputText;
+                }
+                toolOutputs.emplace_back(json::Object{{"type", "function_call_output"},
+                                                      {"call_id", callId},
+                                                      {"output", std::move(outputText)}});
             }
 
-            json::Array *messages = messagesValue.getAsArray();
-            json::Array contentCopy = *content;
-            messages->emplace_back(
-                json::Object{{"role", "assistant"}, {"content", std::move(contentCopy)}});
-            if (!toolResults.empty()) {
-                messages->emplace_back(
-                    json::Object{{"role", "user"}, {"content", std::move(toolResults)}});
-            }
             if (accepted) {
                 result.m_status = "ok";
                 result.m_model = model;
@@ -310,6 +319,7 @@ namespace llmcpp
             if (!usedTool) {
                 break;
             }
+            inputValue = json::Value(std::move(toolOutputs));
         }
 
         result.m_status = "error";
@@ -317,5 +327,4 @@ namespace llmcpp
         result.m_message = "the model stopped without an accepted submit";
         return true;
     }
-
 }

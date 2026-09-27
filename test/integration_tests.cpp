@@ -5,7 +5,7 @@
 // Catch2 header for integration test declarations and assertions.
 #include <catch2/catch_test_macros.hpp>
 
-// Header-only HTTP server for exercising the built-in Anthropic client.
+// Header-only HTTP server for exercising the built-in API clients.
 #include <httplib.h>
 
 // Standard and POSIX headers for isolated filesystem command tests.
@@ -206,6 +206,95 @@ namespace
         }
 
         ~FakeAnthropicServer()
+        {
+            m_server.stop();
+            if (m_thread.joinable()) {
+                m_thread.join();
+            }
+        }
+
+        std::string base_url() const
+        {
+            return "http://127.0.0.1:" + std::to_string(m_port);
+        }
+
+        unsigned calls() const
+        {
+            return m_calls;
+        }
+
+        std::vector<std::string> requests() const
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            return m_requests;
+        }
+
+        std::string problem() const
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            return m_problem;
+        }
+
+    private:
+        httplib::Server m_server;
+        int m_port = -1;
+        std::thread m_thread;
+        std::atomic<unsigned> m_calls{0};
+        mutable std::mutex m_mutex;
+        std::vector<std::string> m_requests;
+        std::string m_problem;
+    };
+
+    // Local Responses API endpoint that drives get_task, try_compile, and submit.
+    class FakeOpenAIServer
+    {
+    public:
+        FakeOpenAIServer()
+        {
+            m_server.Post("/v1/responses", [this](const httplib::Request &request,
+                                                  httplib::Response &response) {
+                unsigned call = ++m_calls;
+                {
+                    std::lock_guard<std::mutex> lock(m_mutex);
+                    m_requests.push_back(request.body);
+                    if (request.get_header_value("Authorization") != "Bearer test-key") {
+                        m_problem = "missing or incorrect Authorization header";
+                    }
+                }
+
+                const char *name = nullptr;
+                const char *arguments = nullptr;
+                if (call == 1) {
+                    name = "get_task";
+                    arguments = "{}";
+                } else if (call == 2) {
+                    name = "try_compile";
+                    arguments = R"json({\"body\":\"\"})json";
+                } else if (call == 3) {
+                    name = "submit";
+                    arguments = R"json({\"body\":\"\"})json";
+                } else {
+                    response.status = 500;
+                    response.set_content("unexpected extra request", "text/plain");
+                    return;
+                }
+                response.set_content(
+                    std::string(R"json({"id":"response-)json") + std::to_string(call) +
+                        R"json(","model":"native-openai-test-model","output":[{"type":"function_call","call_id":"call-)json" +
+                        std::to_string(call) + R"json(","name":")json" + name +
+                        R"json(","arguments":)json" + std::string("\"") + arguments + "\"}]}",
+                    "application/json");
+            });
+            m_port = m_server.bind_to_any_port("127.0.0.1");
+            if (m_port <= 0) {
+                throw std::runtime_error("could not bind fake OpenAI server");
+            }
+            m_thread = std::thread([this] {
+                m_server.listen_after_bind();
+            });
+        }
+
+        ~FakeOpenAIServer()
         {
             m_server.stop();
             if (m_thread.joinable()) {
@@ -451,6 +540,37 @@ TEST_CASE("native Anthropic client completes a compiler tool loop", "[generation
                    {"\"tool_use_id\":\"call-2\"", "compiles without errors or warnings"});
 
     CommandResult run = work.run("./native-anthropic");
+    REQUIRE(run.m_status == 0);
+}
+
+// Verify that OpenAI generation runs in-process without the Python agent.
+TEST_CASE("native OpenAI client completes a compiler tool loop", "[generation][openai]")
+{
+    Workspace work;
+    FakeOpenAIServer server;
+    CommandResult result =
+        work.llmcxx({"-fno-llm-cache", "case_failure.cpp", "-o", "native-openai"},
+                    {{"LLMCPP_AGENT", ""},
+                     {"LLMCPP_BACKEND", "openai"},
+                     {"OPENAI_API_KEY", "test-key"},
+                     {"OPENAI_BASE_URL", server.base_url()},
+                     {"LLMCPP_MODEL", "requested-test-model"}});
+    INFO(result.m_err);
+    REQUIRE(result.m_status == 0);
+    CHECK(server.calls() == 3);
+    CHECK(server.problem().empty());
+
+    std::vector<std::string> requests = server.requests();
+    REQUIRE(requests.size() == 3);
+    check_contains(requests[0], {"\"model\":\"requested-test-model\"", "\"get_task\"",
+                                 "\"instructions\"", "\"type\":\"function\""});
+    check_contains(requests[1],
+                   {"\"previous_response_id\":\"response-1\"", "\"type\":\"function_call_output\"",
+                    "call-1", "Do something impossible."});
+    check_contains(requests[2], {"\"previous_response_id\":\"response-2\"", "call-2",
+                                 "compiles without errors or warnings"});
+
+    CommandResult run = work.run("./native-openai");
     REQUIRE(run.m_status == 0);
 }
 

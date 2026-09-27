@@ -13,9 +13,9 @@ flowchart LR
     Cache -- no --> Generate[Generation pass]
     Generate <--> Context[Compiler-context tools]
     Generate --> Backend{Backend}
-    Backend <--> Native[Native Anthropic client]
+    Backend <--> Native[Native API clients]
     Backend <--> Adapter[Python adapter]
-    Native <--> Anthropic[Anthropic API]
+    Native <--> APIs[OpenAI or Anthropic API]
     Adapter <--> CLI[Codex or Claude Code]
     Generate --> Cache
     Generate --> Rewrite
@@ -38,9 +38,9 @@ function task and asks for the AST-derived context it needs. `try_compile`
 checks a candidate in a rewritten copy of the same translation unit before
 `submit` accepts it.
 
-The native Anthropic backend calls these tools in process. Codex, Claude Code,
-and custom agents reach the same tools through JSON-RPC and MCP, so backend
-selection does not change what the compiler can expose.
+The native OpenAI and Anthropic backends call these tools in process. Codex,
+Claude Code, and custom agents reach the same tools through JSON-RPC and MCP,
+so backend selection does not change what the compiler can expose.
 
 ## Prototype limits
 
