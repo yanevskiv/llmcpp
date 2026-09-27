@@ -11,11 +11,8 @@ RUN apt-get update \
         cmake \
         curl \
         doxygen \
-        texlive-latex-extra \
-        texlive-fonts-recommended \
         git \
         libllvm19 \
-        ninja-build \
         pre-commit \
         python3 \
         python3-pip \

@@ -32,9 +32,9 @@ what is already present.
 `do_build.sh` creates the build tree under `build/out/` and installs a runnable
 bundle under `build/install/`.
 
-Documentation is built separately with `./do_build_docs.sh` or
-`./do_build_docs_in_docker.sh`. Its build tree is `build/docs/`, and the HTML,
-PDF, and man pages install under the same `build/install/` prefix. See
+Documentation is built separately with `./do_build_docs.sh`.
+Its build tree is `build/docs/`, and the HTML
+and man pages install under the same `build/install/` prefix. See
 [How to work on llmcpp](how_to_work_on_llmcpp.md#build-reference-documentation)
 for the documentation tools.
 
@@ -68,11 +68,11 @@ deps/
   cpp-httplib/          HTTP header
 build/
   out/                  CMake cache, objects, and generated build files
-  docs/                 documentation build tree, HTML, and PDF
+  docs/                 documentation build tree and HTML
   install/
     bin/                 llmc++, llmcpp-agent, and llmcpp-tests
     lib/                 Clang/LLVM runtime libraries and resource headers
-    share/doc/llmcpp/     HTML documentation and PDF reference
+    share/doc/llmcpp/     HTML documentation
     share/man/man1/      compiler and agent command references
 ```
 

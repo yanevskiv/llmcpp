@@ -16,16 +16,13 @@ need credentials or network access.
 ## Build reference documentation
 
 Documentation is built separately from the compiler. `do_build_docs.sh` generates
-the HTML site in `build/docs/html` and the hitec PDF in `build/docs/llmcpp.pdf`.
-They install to
-`build/install/share/doc/llmcpp/html` and `build/install/share/doc/llmcpp/llmcpp.pdf`.
-Open `index.html` in a browser or read the PDF offline. Sphinx builds the HTML
+the HTML site in `build/docs/html` and installs it to
+`build/install/share/doc/llmcpp/html`.
+Open `index.html` in a browser. Sphinx builds the HTML
 site with the Read the Docs theme; MyST reads the Markdown guides and Breathe
-imports the Doxygen XML reference. The PDF is the Doxygen C++ reference, not
-the tutorial site.
+imports the Doxygen XML reference.
 
-Doxygen, TeX Live (`texlive-latex-extra` and `texlive-fonts-recommended`), and
-Python's `venv` support are required for documentation and included in the
+Doxygen and Python's `venv` support are required for documentation and included in the
 Docker image. `do_build_docs.sh` creates a virtual environment under
 `build/out/docs_venv` and installs Sphinx and the other packages from
 `docs/web/requirements.txt`. Subsequent builds reuse the environment and check
@@ -42,16 +39,9 @@ Build and install the documentation:
 ./do_build_docs.sh
 ```
 
-Or use the development image:
-
-```sh
-./do_build_docs_in_docker.sh
-```
-
 The documentation build uses its own CMake tree under `build/docs` and does not
 require fetched compiler dependencies. Normal compiler builds do not require
-Doxygen, Sphinx, or TeX Live. Clean `build/docs` before switching its build
-between the host and Docker, since their source paths differ.
+Doxygen or Sphinx.
 
 The hand-written command references in `docs/man/` install to
 `build/install/share/man/man1`, even when Doxygen is disabled. Preview them with
