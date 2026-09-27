@@ -550,3 +550,114 @@ templates, PCH-accelerated `try_compile`, clangd behavior, and bringing in const
    declaration injection at namespace scope.
 4. Should `*.llm.cpp` outputs (§3.6) or `.llmcache/` be the recommended thing to
    commit, or both?
+
+---
+
+## 13. System prompts and a public agent interface
+
+The compiler should own the system instructions given to a generation agent.
+They are part of the generation contract, not a private implementation detail
+of one backend.
+
+### 13.1 System-prompt files
+
+Add a system-prompt option whose argument is a UTF-8 file:
+
+```sh
+llmc++ -fllm-system-prompt=PROMPT.md main.cpp
+```
+
+It replaces the built-in prompt. Provide a separate composition option:
+
+```sh
+llmc++ -fllm-append-system-prompt=PROJECT_RULES.md main.cpp
+```
+
+Appending preserves the default tool-use and safety contract while allowing a
+project to add its own rules. Do not accept raw prompt text on the command
+line: shell quoting is awkward and command lines can expose its contents.
+
+The resolved prompt, including appended files, must be hashed into the cache
+identity and recorded in cache metadata. A generated body must not be reused
+after the instructions that produced it have changed.
+
+### 13.2 Agent protocol
+
+Make the existing external-agent interface a documented, versioned public
+protocol. It uses newline-delimited JSON-RPC over standard input and output:
+
+```text
+llmc++  -- JSON-RPC -->  agent: llm/generate
+agent   -- MCP ------->  llmc++: initialize, tools/list, tools/call
+agent   -- JSON-RPC -->  llmc++: generation result
+```
+
+`llm/generate` should carry the generation task, limits, resolved system
+prompt, requested model when one was selected, and a protocol version with
+optional capabilities. The agent calls the compiler's MCP tools, especially
+`get_task`, `try_compile`, and `submit`, then returns its status and model id.
+
+This lets users write an agent in Python or another language without copying
+or modifying `llmcpp-agent`. The bundled Python program remains a reference
+implementation and a convenient adapter, not a required intermediary.
+
+The existing launch interface is the first transport:
+
+```sh
+llmc++ -fllm-agent='./my-agent' main.cpp
+```
+
+Later, add a distinct connection option for persistent agents:
+
+```text
+-fllm-agent-url=unix:///tmp/llmcpp-agent.sock
+-fllm-agent-url=tcp://127.0.0.1:PORT
+```
+
+Keep command launching and socket connections separate. Standard input and
+output give a launched agent a clear lifetime and straightforward sandboxing.
+A network transport needs authentication, session handling, and concurrency
+rules before it is suitable beyond local use.
+
+### 13.3 Models and adapters
+
+Keep provider-specific protocol translation in agents. An open-weight setup
+should look like this:
+
+```text
+llmc++ -> versioned agent/MCP protocol -> adapter -> Mistral, vLLM, Ollama,
+                                                     llama.cpp, or another server
+```
+
+This is preferable to a native C++ client for every provider. Servers that
+claim OpenAI compatibility do not necessarily implement the same Responses
+API or function-calling behavior as OpenAI. An adapter can translate its
+server's chat and tool-call format into the stable llmcpp agent protocol.
+
+A bundled generic OpenAI-chat-compatible adapter may be useful later, with a
+base URL, model, credentials, and tool-call format supplied in its own
+configuration. It must be optional: compatibility claims alone are not enough
+to promise working compiler tools.
+
+### 13.4 Useful controls
+
+- `-fllm-model=<id>` requests a model from an agent; environment variables are
+  defaults, not the only configuration interface.
+- `-fllm-agent-config=<file>` passes agent-specific configuration without
+  growing provider-specific compiler flags.
+- Record redacted agent transcripts for diagnosis and replay.
+- Print the prompt digest and agent identity in verbose output, and retain
+  both in cache metadata.
+- Ship a small reference Python package or example that implements the public
+  protocol.
+
+### 13.5 Scope discipline
+
+`LLMCPP_BACKEND=auto` is convenient for exploration but weak for reproducible
+builds: ambient API keys and installed CLIs can change the selected backend.
+Prefer explicit agents or backends in CI.
+
+The native OpenAI and Anthropic clients are useful convenience paths, but
+should not become the extension mechanism for every model provider. Likewise,
+provider-specific compiler flags should stay out of the driver and belong to
+the selected agent.

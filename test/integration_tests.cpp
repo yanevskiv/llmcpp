@@ -137,7 +137,7 @@ namespace
         llmcxx(const std::vector<std::string> &arguments,
                const std::vector<std::pair<std::string, std::string>> &environment = {})
         {
-            return run(LLMCXX_PATH, arguments, environment);
+            return run(LLMCPP_PATH, arguments, environment);
         }
 
         // Run llmc++ against a scripted mock agent.
@@ -146,7 +146,7 @@ namespace
             fs::path log = m_root / (fs::path(script).stem().string() + ".log");
             arguments.insert(arguments.begin(), "-fllm-agent=" + std::string(MOCK_AGENT_PATH));
             arguments.insert(arguments.begin() + 1, "-fllm-quiet");
-            return run(LLMCXX_PATH, arguments,
+            return run(LLMCPP_PATH, arguments,
                        {{"LLMCPP_MOCK_SCRIPT", (m_root / script).string()},
                         {"LLMCPP_MOCK_LOG", log.string()}});
         }
