@@ -31,9 +31,10 @@ TEST_CASE("driver help includes generation options", "[options]")
         INFO(result.m_err);
         REQUIRE(result.m_status == 0);
         CHECK(result.m_err.empty());
-        llmcpp::test::check_contains(
-            result.m_out, {"USAGE:", "LLMCPP OPTIONS:", "--llm", "-fllm-backend=", "-fllm-no-cache",
-                           "-fllm-transcript=", "-fllm-verbose", "-fllm-cache-lifetime="});
+        llmcpp::test::check_contains(result.m_out, {"USAGE:", "LLMCPP OPTIONS:", "--llm",
+                                                    "-fllm-backend=", "-fllm-no-cache",
+                                                    "-fllm-transcript=", "-fllm-verbose",
+                                                    "-fllm-cache-lifetime=", "-fllm-cache-salt="});
     }
 }
 
@@ -270,6 +271,134 @@ TEST_CASE("system prompt modifier is scoped to one function", "[generation][cach
         result = work.llmcpp(args);
         REQUIRE(result.m_status != 0);
         llmcpp::test::check_contains(result.m_err, {"not UTF-8"});
+    }
+}
+
+// Verify file-backed modifiers override defaults without affecting other functions.
+TEST_CASE("function prompt additions configuration and transcripts", "[generation][cache][options]")
+{
+    llmcpp::test::TestWorkspace work;
+    std::ofstream(work.path() / "base.md") << "Target base.";
+    std::ofstream(work.path() / "first.md") << "First addition.";
+    std::ofstream(work.path() / "second.md") << "Second addition.";
+    std::ofstream(work.path() / "default.md") << "Default instructions.";
+    std::ofstream(work.path() / "default.json") << R"({"project":"default"})";
+    std::ofstream(work.path() / "target.json") << R"({"project":"target","api_key":"secret"})";
+    std::ofstream(work.path() / "local.cpp")
+        << "__llm__(append_system_prompt(\"first.md\"), system_prompt(\"base.md\"), "
+           "append_system_prompt(\"second.md\"), agent_config(\"target.json\"), "
+           "transcript(\"target.jsonl\")) int answer() { Return 42. }\n"
+        << "__llm__ int increment(int x) { Return x plus one. }\n";
+    std::vector<std::string> args{"--llm",
+                                  "-fllm-cache-dir=cache",
+                                  "-fllm-system-prompt=default.md",
+                                  "-fllm-agent-config=default.json",
+                                  "-fllm-transcript=default.jsonl",
+                                  "local.cpp"};
+    auto result = work.mock("json/test_return_values.json", args);
+    INFO(result.m_err);
+    REQUIRE(result.m_status == 0);
+    std::string log = llmcpp::test::read_file(work.path() / "test_return_values.log");
+    size_t split = log.find("== increment\n");
+    REQUIRE(split != std::string::npos);
+    std::string targetLog = log.substr(0, split);
+    std::string defaultLog = log.substr(split);
+    llmcpp::test::check_contains(targetLog, {"Target base.", "First addition.", "Second addition.",
+                                             "\"project\": \"target\""});
+    CHECK(targetLog.find("Target base.") < targetLog.find("First addition."));
+    CHECK(targetLog.find("First addition.") < targetLog.find("Second addition."));
+    CHECK(targetLog.find("Default instructions.") == std::string::npos);
+    llmcpp::test::check_contains(defaultLog, {"Default instructions.", "\"project\": \"default\""});
+    CHECK(defaultLog.find("First addition.") == std::string::npos);
+    std::string trace = llmcpp::test::read_file(work.path() / "target.jsonl");
+    llmcpp::test::check_contains(trace, {"answer", "[redacted]", "submit"});
+    CHECK(trace.find("secret") == std::string::npos);
+    CHECK(trace.find("increment") == std::string::npos);
+    CHECK(llmcpp::test::read_file(work.path() / "default.jsonl").find("answer") ==
+          std::string::npos);
+    args.push_back("-fllm-offline");
+    REQUIRE(work.llmcpp(args).m_status == 0);
+    SECTION("appended instructions invalidate cache")
+    {
+        std::ofstream(work.path() / "first.md") << "Changed addition.";
+        REQUIRE(work.llmcpp(args).m_status != 0);
+    }
+    SECTION("configuration invalidates cache")
+    {
+        std::ofstream(work.path() / "target.json") << R"({"project":"changed"})";
+        REQUIRE(work.llmcpp(args).m_status != 0);
+    }
+}
+
+// Verify selective context dumps never launch an agent or produce compiled output.
+TEST_CASE("dump context modifier selects functions", "[options]")
+{
+    llmcpp::test::TestWorkspace work;
+    std::ofstream(work.path() / "local.cpp")
+        << "__llm__(dump_context) int answer() { Return 42. }\n"
+        << "__llm__ int increment(int x) { Return x plus one. }\n";
+    auto result = work.llmcpp({"-fllm-agent=nonexistent-command", "local.cpp", "-o", "program"});
+    INFO(result.m_err);
+    REQUIRE(result.m_status == 0);
+    CHECK(result.m_out.find("answer") != std::string::npos);
+    CHECK(result.m_out.find("\"name\": \"increment\"") == std::string::npos);
+    CHECK_FALSE(fs::exists(work.path() / "program"));
+    result = work.llmcpp({"--llm", "local.cpp", "-o", "generated.cpp"});
+    REQUIRE(result.m_status == 0);
+    CHECK_FALSE(fs::exists(work.path() / "generated.cpp"));
+    result = work.llmcpp({"-fllm-dump-context", "local.cpp"});
+    REQUIRE(result.m_status == 0);
+    llmcpp::test::check_contains(result.m_out, {"\"name\": \"answer\"", "\"name\": \"increment\""});
+}
+
+// Verify default salts affect cache identity and function salts replace them.
+TEST_CASE("command line cache salt supplies a default", "[cache][options]")
+{
+    llmcpp::test::TestWorkspace work;
+    auto result = work.mock("json/test_options.json",
+                            {"--llm", "-fllm-cache-salt=driver", "test_options.cpp"});
+    INFO(result.m_err);
+    REQUIRE(result.m_status == 0);
+    for (const auto &entry : fs::directory_iterator(work.path() / ".llmcache")) {
+        llmcpp::test::check_contains(llmcpp::test::read_file(entry.path()),
+                                     {"// cache_salt: \"reviewed\""});
+    }
+    std::ofstream(work.path() / "local.cpp") << "__llm__ int answer() { Return 42. }\n";
+    std::vector<std::string> args{"--llm", "-fllm-cache-salt=driver", "local.cpp"};
+    REQUIRE(work.mock("json/test_return_values.json", args).m_status == 0);
+    args.push_back("-fllm-offline");
+    REQUIRE(work.llmcpp(args).m_status == 0);
+    args[1] = "-fllm-cache-salt=changed";
+    REQUIRE(work.llmcpp(args).m_status != 0);
+    REQUIRE(work.mock("json/test_return_values.json",
+                      {"--llm", "-fllm-cache-salt=driver", "-fllm-no-cache",
+                       "-fllm-cache-dir=unused", "local.cpp"})
+                .m_status == 0);
+    CHECK_FALSE(fs::exists(work.path() / "unused"));
+    result = work.llmcpp({"-fllm-cache-salt=", "local.cpp"});
+    REQUIRE(result.m_status != 0);
+    llmcpp::test::check_contains(result.m_err, {"requires a nonempty salt"});
+}
+
+// Diagnose malformed file-backed modifiers before contacting an agent.
+TEST_CASE("file backed modifiers reject invalid arguments", "[diagnostics][options]")
+{
+    llmcpp::test::TestWorkspace work;
+    std::ofstream(work.path() / "invalid.json") << "[]";
+    std::ofstream(work.path() / "broken.json") << "{";
+    std::ofstream(work.path() / "invalid.md") << char(0xff);
+    for (const char *modifier :
+         {"append_system_prompt(\"missing.md\")", "append_system_prompt(\"invalid.md\")",
+          "agent_config(\"missing.json\")", "agent_config(\"invalid.json\")",
+          "agent_config(\"broken.json\")", "transcript(\"\")", "transcript(2)",
+          "agent_config(\"\")", "append_system_prompt(\"\")", "dump_context(1)",
+          "transcript(\"a\"), transcript(\"b\")"}) {
+        std::ofstream(work.path() / "local.cpp") << "__llm__(" << modifier << ") int answer() {}\n";
+        auto result = work.llmcpp({"--llm", "local.cpp"});
+        INFO(modifier);
+        INFO(result.m_err);
+        REQUIRE(result.m_status != 0);
+        CHECK(result.m_err.find("select an LLM backend") == std::string::npos);
     }
 }
 

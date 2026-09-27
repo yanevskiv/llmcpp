@@ -49,6 +49,10 @@ Disable cache reads and writes.
 .BI \-fllm\-cache\-dir= directory
 Choose the cache directory. The default is .llmcache beside the source file.
 .TP
+.BI \-fllm\-cache\-salt= salt
+Add a nonempty default salt to computed cache keys. A per-function cache_salt
+replaces it. Do not change whether caching is enabled.
+.TP
 .BI \-fllm\-cache\-lifetime= seconds
 Set the maximum cache file age in seconds. Default: 0, no expiry.
 Expired entries are cache misses; offline builds fail instead of generating.
@@ -140,13 +144,32 @@ participate in the computed cache identity.
 .B no_cache
 Disable cache reads and writes for one function.
 .TP
+.B append_system_prompt("file")
+Append a UTF-8 file to this function's resolved instructions. May be repeated.
+Apply after system_prompt regardless of modifier order. Relative paths use
+the compiler's working directory.
+.TP
+.B agent_config("file")
+Replace this function's external-agent configuration with a JSON object from
+a file. Relative paths use the compiler's working directory. File contents
+participate in the computed cache identity.
+.TP
+.B transcript("file")
+Override the JSONL transcript destination for one function. Relative paths use
+the compiler's working directory.
+.TP
+.B dump_context
+Print this function's task and compiler context. Stop compilation without
+generating any bodies; print only selected functions.
+.TP
 .B offline
 Require a cached body for one function and fail on a cache miss without contacting
 an agent. Enable cache reads even with \-fllm\-no\-cache and ignore
 \-fllm\-regenerate. Cannot be combined with no_cache.
 .TP
 .B cache_salt("salt")
-Add a nonempty salt to the cache key, not a filename.
+Replace the default cache salt for this function with a nonempty string,
+not a filename.
 Cannot be combined with no_cache.
 .TP
 .B key("hash")

@@ -238,9 +238,10 @@ namespace llmcpp
             }
             target.m_keyword_end = target.m_keyword_offset + tokens[end].m_end;
             std::set<std::string> seen;
+            std::vector<std::string> appendFiles;
             for (size_t i = 2; i < end;) {
                 std::string name = text.slice(tokens[i].m_begin, tokens[i].m_end).str();
-                if (!seen.insert(name).second) {
+                if (!seen.insert(name).second && name != "append_system_prompt") {
                     error = "duplicate __llm__ option '" + name + "'";
                     return false;
                 }
@@ -251,6 +252,8 @@ namespace llmcpp
                     target.m_options.m_offline = true;
                 } else if (name == "dump") {
                     target.m_options.m_dump = true;
+                } else if (name == "dump_context") {
+                    target.m_options.m_dump_context = true;
                 } else if (name == "verbose") {
                     target.m_options.m_verbose = true;
                 } else {
@@ -262,7 +265,8 @@ namespace llmcpp
                     StringRef literal = text.slice(tokens[i + 1].m_begin, tokens[i + 1].m_end);
                     if (name == "model" || name == "cache_salt" || name == "key" ||
                         name == "backend" || name == "agent" || name == "cache_dir" ||
-                        name == "system_prompt") {
+                        name == "system_prompt" || name == "append_system_prompt" ||
+                        name == "agent_config" || name == "transcript") {
                         auto value = json::parse(literal);
                         if (!value) {
                             llvm::consumeError(value.takeError());
@@ -276,6 +280,29 @@ namespace llmcpp
                         }
                         if (name == "model") {
                             target.m_options.m_model = string->str();
+                        } else if (name == "append_system_prompt") {
+                            appendFiles.push_back(string->str());
+                        } else if (name == "transcript") {
+                            target.m_options.m_transcript_file = string->str();
+                        } else if (name == "agent_config") {
+                            auto buffer = llvm::MemoryBuffer::getFile(*string);
+                            if (!buffer) {
+                                error = "cannot read agent configuration '" + string->str() +
+                                        "': " + buffer.getError().message();
+                                return false;
+                            }
+                            auto config = json::parse((*buffer)->getBuffer());
+                            if (!config) {
+                                llvm::consumeError(config.takeError());
+                                error = "agent configuration must be a JSON object";
+                                return false;
+                            }
+                            if (!config->getAsObject()) {
+                                error = "agent configuration must be a JSON object";
+                                return false;
+                            }
+                            target.m_options.m_agent_config_file = string->str();
+                            target.m_options.m_agent_config = (*buffer)->getBuffer().str();
                         } else if (name == "system_prompt") {
                             auto buffer = llvm::MemoryBuffer::getFile(*string);
                             if (!buffer) {
@@ -349,6 +376,23 @@ namespace llmcpp
                     error = "expected another __llm__ option after a comma";
                     return false;
                 }
+            }
+            for (const std::string &file : appendFiles) {
+                auto buffer = llvm::MemoryBuffer::getFile(file);
+                if (!buffer) {
+                    error =
+                        "cannot read system prompt '" + file + "': " + buffer.getError().message();
+                    return false;
+                }
+                if (!json::isUTF8((*buffer)->getBuffer())) {
+                    error = "system prompt '" + file + "' is not UTF-8";
+                    return false;
+                }
+                if (!target.m_options.m_system_prompt.empty()) {
+                    target.m_options.m_system_prompt += "\n\n";
+                }
+                target.m_options.m_system_prompt += (*buffer)->getBuffer().str();
+                target.m_options.m_append_system_prompt_files.push_back(file);
             }
             if (seen.count("cache_salt") && seen.count("no_cache")) {
                 error = "cache_salt and no_cache cannot be combined";
@@ -553,8 +597,15 @@ namespace llmcpp
         m_state.m_shadow =
             std::make_unique<CompilerSandbox>(m_cc1_args, m_state.m_main_file, m_opts.m_executable);
 
-        if (m_opts.m_dump_context) {
+        bool dumpContext = false;
+        for (const data::DataGenerationTarget &t : m_state.m_targets) {
+            dumpContext |= t.m_options.m_dump_context;
+        }
+        if (dumpContext) {
             for (data::DataGenerationTarget &t : m_state.m_targets) {
+                if (!t.m_options.m_dump_context) {
+                    continue;
+                }
                 AgentToolServer tools(m_state, t);
                 json::Object o{{"task", tools.get_task()}, {"context", tools.get_context()}};
                 llvm::outs() << formatv("{0:2}", json::Value(std::move(o))) << "\n";
@@ -642,6 +693,7 @@ namespace llmcpp
             data::DataGenerationTarget t;
             t.m_keyword_offset = kwOffset;
             t.m_options = m_opts;
+            t.m_cache_salt = m_opts.m_cache_salt;
             std::string optionError;
             if (!parse_target_options(m_state.m_source, t, optionError)) {
                 report(kw, DiagnosticsEngine::Error, "%0") << optionError;

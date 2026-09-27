@@ -218,6 +218,7 @@ namespace llmcpp
                "  -fllm-regenerate                Ignore cached bodies and generate again\n"
                "  -fllm-no-cache                  Disable cache reads and writes\n"
                "  -fllm-cache-dir=<directory>     Override the source's .llmcache directory\n"
+               "  -fllm-cache-salt=<salt>         Add a default salt to computed cache keys\n"
                "  -fllm-cache-lifetime=<seconds> Limit cache age (default: 0, no expiry)\n"
                "  -fllm-hash-abbrev=<n>           Minimum hash length (default: 7, maximum: 64)\n"
                "  -fllm-max-attempts=<count>      Limit rejected submissions (default: 4)\n"
@@ -277,6 +278,11 @@ namespace llmcpp
             m_options.m_use_cache = false;
         } else if (arg.consume_front("-fllm-cache-dir=")) {
             m_options.m_cache_dir = arg.str();
+        } else if (arg.consume_front("-fllm-cache-salt=")) {
+            m_options.m_cache_salt = arg.str();
+            if (arg.empty()) {
+                error = "-fllm-cache-salt requires a nonempty salt";
+            }
         } else if (arg.consume_front("-fllm-cache-lifetime=")) {
             if (arg.getAsInteger(10, m_options.m_cache_lifetime)) {
                 error = "invalid value for -fllm-cache-lifetime (expected a nonnegative integer)";

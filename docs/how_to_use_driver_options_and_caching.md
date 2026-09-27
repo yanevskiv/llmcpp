@@ -104,7 +104,19 @@ or invalid UTF-8 files are errors. File contents participate in the computed
 cache identity, so edits invalidate that function's cache unless `key` pins it.
 `no_cache` disables reads and writes for one target. `cache_salt("scores-v1")`
 adds a salt to its key; the string is not a filename.
-These two options cannot be combined. Numeric limits must be positive integer
+These two options cannot be combined.
+`-fllm-cache-salt=scores-v1` sets the default salt for all functions without
+changing caching policy. A function's `cache_salt` replaces that default.
+`append_system_prompt("rules.md")` appends a UTF-8 file to a function's resolved
+instructions. It can be repeated, and appends after `system_prompt` regardless
+of modifier order. `agent_config("config.json")` replaces the external-agent
+configuration with a JSON object; its contents also affect the computed key.
+`transcript("trace.jsonl")` overrides the transcript destination for one function.
+These file paths are relative to the compiler's working directory.
+`dump_context` prints only selected functions' task and context, then stops
+without generating any bodies or compiling. The command-line option selects
+all functions.
+Numeric limits must be positive integer
 literals; model names and salts must be nonempty quoted strings.
 
 The agent receives the effective model, cache policy, attempts, tool budget,
