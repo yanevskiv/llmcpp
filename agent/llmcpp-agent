@@ -8,15 +8,18 @@ stdin/stdout. The agent is an MCP client of llmc++: while answering an
 
 Backends (LLMCPP_BACKEND):
   anthropic    The Claude Messages API. Needs ANTHROPIC_API_KEY.
+  codex        `codex exec` with llmc++'s tools as an MCP server.
+               Uses your Codex login.
   claude-code  `claude -p` (Claude Code) with llmc++'s tools as an MCP server.
                Uses your Claude Code login.
   auto         (default) anthropic if ANTHROPIC_API_KEY is set, otherwise
-               claude-code if `claude` is on PATH.
+               codex if `codex` is on PATH, then claude-code.
 
 Environment:
   LLMCPP_MODEL    Model id or alias (anthropic default: claude-opus-5;
-                  claude-code default: Claude Code's configured model).
-  LLMCPP_EFFORT   Effort level for claude-code (default: medium).
+                  CLI backends otherwise use their own default model).
+  LLMCPP_EFFORT   Effort level for Codex or Claude Code (default: medium).
+  LLMCPP_CODEX    The codex executable (default: codex).
   LLMCPP_CLAUDE   The claude executable (default: claude).
   LLMCPP_VERBOSE  Set by `llmc++ -fllm-verbose`; logs progress to stderr.
 """
@@ -212,6 +215,92 @@ class AnthropicBackend:
                 "message": "the model stopped without an accepted submit"}
 
 
+class CodexBackend:
+    """Runs `codex exec` with llmc++'s tools exposed as an MCP server."""
+
+    def __init__(self, codex):
+        self.codex = codex
+        self.model = os.environ.get("LLMCPP_MODEL")
+        self.effort = os.environ.get("LLMCPP_EFFORT", "medium")
+        self.process = None
+
+    def model_id(self):
+        return self.model or "codex"
+
+    def generate(self, conn, tools, task):
+        timeout = int(task.get("limits", {}).get("timeout_seconds", 600))
+        state = {"accepted": False}
+        with tempfile.TemporaryDirectory(prefix="llmcpp-agent-") as tmp:
+            socket_path = os.path.join(tmp, "tools.sock")
+            server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            server.bind(socket_path)
+            server.listen(4)
+            threading.Thread(target=serve_mcp,
+                             args=(server, conn, tools, state),
+                             daemon=True).start()
+
+            bridge_args = [os.path.abspath(__file__), "--mcp-bridge",
+                           socket_path]
+            command = [
+                self.codex, "exec", "--json", "--ephemeral",
+                "--ignore-user-config", "--ignore-rules",
+                "--skip-git-repo-check", "--sandbox", "read-only",
+                "--cd", tmp,
+                "--config", 'approval_policy="never"',
+                "--config", "mcp_servers.llmcpp.command=%s"
+                            % json.dumps(sys.executable),
+                "--config", "mcp_servers.llmcpp.args=%s"
+                            % json.dumps(bridge_args),
+                "--config", 'mcp_servers.llmcpp.default_tools_approval_mode="approve"',
+                "--config", "mcp_servers.llmcpp.required=true",
+            ]
+            if self.model:
+                command += ["--model", self.model]
+            if self.effort:
+                command += ["--config", "model_reasoning_effort=%s"
+                                        % json.dumps(self.effort)]
+            command.append(SYSTEM_PROMPT + "\n\n" + task_message(task))
+
+            log("running codex exec for", task.get("name"))
+            self.process = subprocess.Popen(
+                command, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE, cwd=tmp, text=True)
+            try:
+                out, err = self.process.communicate(timeout=timeout)
+                timed_out = False
+            except subprocess.TimeoutExpired:
+                self.process.kill()
+                out, err = self.process.communicate()
+                timed_out = True
+            code = self.process.returncode
+            self.process = None
+            server.close()
+
+        message = ""
+        for line in out.splitlines():
+            try:
+                event = json.loads(line)
+            except ValueError:
+                continue
+            item = event.get("item") or {}
+            if (event.get("type") == "item.completed"
+                    and item.get("type") == "agent_message"):
+                message = item.get("text") or message
+            if event.get("type") in ("error", "turn.failed"):
+                message = (event.get("message")
+                           or (event.get("error") or {}).get("message")
+                           or message)
+        if timed_out:
+            message = "codex timed out after %ds" % timeout
+        if state["accepted"]:
+            return {"status": "ok", "model": self.model_id(),
+                    "message": message}
+        return {"status": "error", "model": self.model_id(),
+                "message": message or (err or "").strip()[-1000:]
+                or "codex exited with status %s without an accepted submit"
+                   % code}
+
+
 class ClaudeCodeBackend:
     """Runs `claude -p` with llmc++'s tools exposed as an MCP server.
 
@@ -237,7 +326,7 @@ class ClaudeCodeBackend:
             server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             server.bind(socket_path)
             server.listen(4)
-            threading.Thread(target=self._serve,
+            threading.Thread(target=serve_mcp,
                              args=(server, conn, tools, state),
                              daemon=True).start()
 
@@ -296,58 +385,9 @@ class ClaudeCodeBackend:
                 "message": message or "claude exited with status %s without "
                                       "an accepted submit" % code}
 
-    def _serve(self, server, conn, tools, state):
-        while True:
-            try:
-                client, _ = server.accept()
-            except OSError:
-                return
-            threading.Thread(target=self._handle,
-                             args=(client, conn, tools, state),
-                             daemon=True).start()
-
-    def _handle(self, client, conn, tools, state):
-        with client, client.makefile("rwb") as stream:
-            for line in stream:
-                if not line.strip():
-                    continue
-                message = json.loads(line)
-                if "id" not in message:
-                    continue  # Notifications need no answer.
-                method = message.get("method")
-                params = message.get("params") or {}
-                response = {"jsonrpc": "2.0", "id": message["id"]}
-                if method == "initialize":
-                    response["result"] = {
-                        "protocolVersion": params.get("protocolVersion",
-                                                      "2025-06-18"),
-                        "capabilities": {"tools": {}},
-                        "serverInfo": {"name": "llmcpp", "version": VERSION}}
-                elif method == "tools/list":
-                    response["result"] = {"tools": tools}
-                elif method == "tools/call":
-                    try:
-                        result = conn.request("tools/call", params)
-                    except Exception as e:  # llmc++ went away
-                        result = {"content": [{"type": "text",
-                                               "text": "llmc++ error: %s" % e}],
-                                  "isError": True}
-                    log(params.get("name"), "->",
-                        "error" if result.get("isError") else "ok")
-                    if params.get("name") == "submit" and not result.get("isError"):
-                        state["accepted"] = True
-                    response["result"] = result
-                elif method == "ping":
-                    response["result"] = {}
-                else:
-                    response["error"] = {"code": -32601,
-                                         "message": "method not found: %s" % method}
-                stream.write((json.dumps(response) + "\n").encode())
-                stream.flush()
-
 
 def mcp_bridge(socket_path):
-    """Connects Claude Code's MCP stdio to the agent's socket."""
+    """Connects a CLI backend's MCP stdio to the agent's socket."""
     sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     sock.connect(socket_path)
 
@@ -373,6 +413,59 @@ def mcp_bridge(socket_path):
         sys.stdout.buffer.flush()
 
 
+def serve_mcp(server, conn, tools, state):
+    """Serves MCP connections from CLI backends."""
+    while True:
+        try:
+            client, _ = server.accept()
+        except OSError:
+            return
+        threading.Thread(target=handle_mcp,
+                         args=(client, conn, tools, state),
+                         daemon=True).start()
+
+
+def handle_mcp(client, conn, tools, state):
+    """Forwards one CLI backend's MCP connection to llmc++."""
+    with client, client.makefile("rwb") as stream:
+        for line in stream:
+            if not line.strip():
+                continue
+            message = json.loads(line)
+            if "id" not in message:
+                continue  # Notifications need no answer.
+            method = message.get("method")
+            params = message.get("params") or {}
+            response = {"jsonrpc": "2.0", "id": message["id"]}
+            if method == "initialize":
+                response["result"] = {
+                    "protocolVersion": params.get("protocolVersion",
+                                                  "2025-06-18"),
+                    "capabilities": {"tools": {}},
+                    "serverInfo": {"name": "llmcpp", "version": VERSION}}
+            elif method == "tools/list":
+                response["result"] = {"tools": tools}
+            elif method == "tools/call":
+                try:
+                    result = conn.request("tools/call", params)
+                except Exception as e:  # llmc++ went away
+                    result = {"content": [{"type": "text",
+                                           "text": "llmc++ error: %s" % e}],
+                              "isError": True}
+                log(params.get("name"), "->",
+                    "error" if result.get("isError") else "ok")
+                if params.get("name") == "submit" and not result.get("isError"):
+                    state["accepted"] = True
+                response["result"] = result
+            elif method == "ping":
+                response["result"] = {}
+            else:
+                response["error"] = {"code": -32601,
+                                     "message": "method not found: %s" % method}
+            stream.write((json.dumps(response) + "\n").encode())
+            stream.flush()
+
+
 def choose_backend():
     choice = os.environ.get("LLMCPP_BACKEND", "auto")
     if choice == "anthropic" or (choice == "auto"
@@ -380,11 +473,17 @@ def choose_backend():
         if not os.environ.get("ANTHROPIC_API_KEY"):
             raise RuntimeError("LLMCPP_BACKEND=anthropic needs ANTHROPIC_API_KEY")
         return AnthropicBackend()
+    if choice in ("codex", "auto"):
+        codex = shutil.which(os.environ.get("LLMCPP_CODEX", "codex"))
+        if codex:
+            return CodexBackend(codex)
+        if choice == "codex":
+            raise RuntimeError("LLMCPP_BACKEND=codex needs the Codex CLI")
     if choice in ("claude-code", "auto"):
         claude = shutil.which(os.environ.get("LLMCPP_CLAUDE", "claude"))
         if not claude:
-            raise RuntimeError("no LLM backend: set ANTHROPIC_API_KEY, or "
-                               "install Claude Code and log in")
+            raise RuntimeError("no LLM backend: set ANTHROPIC_API_KEY, install "
+                               "Codex, or install Claude Code")
         return ClaudeCodeBackend(claude)
     raise RuntimeError("unknown LLMCPP_BACKEND '%s'" % choice)
 

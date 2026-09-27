@@ -1,27 +1,27 @@
 # llmc++
 
-`llmc++` is a prototype C++ compiler driver, based on Clang, that adds an `__llm__` function specifier.
-It's somewhat inspired by CUDA's `__global__`, which marks those functions which should run on the GPU.
-Except when you mark a function, method, or a lambda with `__llm__` you can write its body in a natural language rather than strict C++
+`llmc++` lets you describe what a C++ function should do instead of writing its
+body yourself. Add `__llm__` to a function, method, or lambda, then write the
+body in plain language.
 
-`llmc++` asks an LLM agent to generate the real C++ body, then compiles the result with stock Clang 19.
-The LLM agent doesn't look at the raw source code; rather it looks at Clang's compilation context.
-This gives it a unique ability to know what template types are.
+When you build the program, an LLM agent turns that description into C++. It
+can ask Clang about the declarations, types, members, and captures in scope and
+use compiler errors to correct its work. The finished body is compiled with
+stock Clang 19, so the resulting executable does not need an LLM at runtime.
 
-For example, the LLM will know what T is.
-```c++
-// $ llmc++ main.c -o main
-// $ ./main
-#include <iostream>
+Clang can tell whether the generated body is valid C++, but it cannot tell
+whether the code does exactly what you meant. You still need to review and test
+it. If the function is a template, `llmc++` generates one body for the template
+rather than a different body for each instantiation.
 
-template <typename T> __llm__ void f()
+Here is a small example:
+
+```cpp
+#include <vector>
+
+__llm__ void sort_scores(std::vector<int> &scores)
 {
-    Use std::cout to print type is T is here.
-}
-
-int main() {
-    f<int>();
-    f<short>();
+    Sort scores from highest to lowest.
 }
 ```
 
@@ -34,7 +34,7 @@ Create `main.cpp`:
 
 __llm__ void greet()
 {
-    Print "Hello from llmcpp!" followed by a newline.
+    Print "Hello from llmc++!" followed by a newline.
 }
 
 int main()
@@ -85,14 +85,20 @@ __llm__ double sqrt(double x) {
 
 ## Examples
 
-[`examples/`](examples/) contains four numbered examples: a hello function, a
-type-aware template, an empty inferred square-root function, and a constrained
-return-value helper. For example:
-
-```sh
-llmc++ examples/example01_hello.cpp -o hello
-./hello
-```
+| Example | What it shows |
+| --- | --- |
+| [Hello](examples/example01_hello.cpp) | The smallest complete program. |
+| [Clamp](examples/example02_clamp.cpp) | Parameters and a return value. |
+| [Inferred square root](examples/example03_square_root.cpp) | Conventional behavior inferred from an empty prompt. |
+| [Impossible request](examples/example04_impossible_request.cpp) | Compile checks cannot establish whether a request is achievable. |
+| [Missing include](examples/example05_missing_include.cpp) | Generated bodies cannot use unavailable types. |
+| [Composed functions](examples/example06_composed_functions.cpp) | Calling one generated function from another. |
+| [Inventory reservation](examples/example07_inventory.cpp) | Reading and updating private member state. |
+| [Interval merging](examples/example08_merge_intervals.cpp) | An algorithm over a project-defined record. |
+| [Capturing lambda](examples/example09_capturing_lambda.cpp) | Using a captured value in an STL algorithm. |
+| [Shortest path](examples/example10_shortest_path.cpp) | A larger graph algorithm. |
+| [Top-k selection](examples/example11_top_k_by.cpp) | A range template with a projection. |
+| [Projected frequency table](examples/example12_projected_frequency_table.cpp) | An iterator template with a dependent return type. |
 
 ## Learn more
 
@@ -105,4 +111,5 @@ llmc++ examples/example01_hello.cpp -o hello
 - [Prototype plan and milestones](PLAN.md)
 
 ## Author
+
 Ivan Janevski (C) 2026

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Scripted agent for llmc++ tests (PLAN.md section 5). No network.
+"""Scripted llmc++ agent and Codex CLI stand-in. No network.
 
 LLMCPP_MOCK_SCRIPT names a JSON file:
 
@@ -13,14 +13,87 @@ LLMCPP_MOCK_SCRIPT names a JSON file:
 
 Steps run in order; "respond" answers llm/generate immediately. Every tool
 call and its result are appended to LLMCPP_MOCK_LOG if it is set.
+
+When invoked with ``exec``, the program instead checks llmcpp's Codex CLI
+arguments and completes one compiler-tool loop through the configured MCP
+bridge.
 """
 
 import json
 import os
+import subprocess
 import sys
 
 
-def main():
+def config_value(arguments, key):
+    """Return one JSON-compatible Codex configuration override."""
+    for index, argument in enumerate(arguments[:-1]):
+        if argument == "--config":
+            setting = arguments[index + 1]
+            if setting.startswith(key + "="):
+                return json.loads(setting.split("=", 1)[1])
+    raise RuntimeError("missing Codex configuration: " + key)
+
+
+def mcp_request(process, request_id, method, params):
+    """Send one MCP request and return its result."""
+    message = {"jsonrpc": "2.0", "id": request_id,
+               "method": method, "params": params}
+    process.stdin.write(json.dumps(message) + "\n")
+    process.stdin.flush()
+    while True:
+        response = json.loads(process.stdout.readline())
+        if response.get("id") == request_id:
+            return response.get("result") or {}
+
+
+def run_codex(arguments):
+    """Check a Codex invocation and complete one compiler-tool loop."""
+    required = {"exec", "--json", "--ephemeral", "--ignore-user-config",
+                "--ignore-rules", "--skip-git-repo-check", "--sandbox"}
+    if not required.issubset(arguments):
+        raise RuntimeError("incomplete codex exec invocation")
+    if config_value(arguments, "approval_policy") != "never":
+        raise RuntimeError("Codex approvals were not disabled")
+    approval = config_value(
+        arguments, "mcp_servers.llmcpp.default_tools_approval_mode")
+    if approval != "approve":
+        raise RuntimeError("llmc++ tools were not approved")
+    if not config_value(arguments, "mcp_servers.llmcpp.required"):
+        raise RuntimeError("llmc++ MCP server was not required")
+    if config_value(arguments, "model_reasoning_effort") != "high":
+        raise RuntimeError("Codex effort was not forwarded")
+
+    command = config_value(arguments, "mcp_servers.llmcpp.command")
+    bridge_args = config_value(arguments, "mcp_servers.llmcpp.args")
+    bridge = subprocess.Popen([command] + bridge_args, stdin=subprocess.PIPE,
+                              stdout=subprocess.PIPE, text=True)
+    try:
+        mcp_request(bridge, 1, "initialize", {"protocolVersion": "2025-06-18"})
+        tools = mcp_request(bridge, 2, "tools/list", {}).get("tools", [])
+        names = {tool.get("name") for tool in tools}
+        if not {"get_task", "try_compile", "submit"}.issubset(names):
+            raise RuntimeError("llmc++ tools were not exposed to Codex")
+        mcp_request(bridge, 3, "tools/call",
+                    {"name": "get_task", "arguments": {}})
+        mcp_request(bridge, 4, "tools/call",
+                    {"name": "try_compile", "arguments": {"body": ""}})
+        submitted = mcp_request(
+            bridge, 5, "tools/call",
+            {"name": "submit", "arguments": {"body": ""}})
+        if submitted.get("isError"):
+            raise RuntimeError("llmc++ rejected the mock Codex submission")
+    finally:
+        bridge.terminate()
+        bridge.wait()
+
+    print(json.dumps({"type": "item.completed", "item": {
+        "type": "agent_message", "text": "Generated the function body."}}))
+    return 0
+
+
+def run_agent():
+    """Run the scripted llmc++ agent protocol."""
     with open(os.environ["LLMCPP_MOCK_SCRIPT"]) as f:
         script = json.load(f)
     log_path = os.environ.get("LLMCPP_MOCK_LOG")
@@ -82,5 +155,13 @@ def main():
         send({"jsonrpc": "2.0", "id": message["id"], "result": result})
 
 
+def main():
+    """Select the mock protocol from the command-line shape."""
+    if sys.argv[1:2] == ["exec"]:
+        return run_codex(sys.argv[1:])
+    run_agent()
+    return 0
+
+
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

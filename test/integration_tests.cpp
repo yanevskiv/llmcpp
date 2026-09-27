@@ -251,7 +251,7 @@ namespace
 TEST_CASE("invalid annotations produce llmc++ diagnostics", "[diagnostics]")
 {
     Workspace work;
-    CommandResult result = work.llmcxx({"-fsyntax-only", "errors.cpp"});
+    CommandResult result = work.llmcxx({"-fsyntax-only", "case_errors.cpp"});
     REQUIRE(result.m_status != 0);
     check_contains(result.m_err,
                    {"preprocessor directives are not allowed in an __llm__ function body",
@@ -270,9 +270,9 @@ TEST_CASE("annotations in headers are rejected", "[diagnostics]")
     for (const char *mode : {"-fsyntax-only", "--llm"}) {
         DYNAMIC_SECTION(mode)
         {
-            CommandResult result = work.llmcxx({mode, "header.cpp"});
+            CommandResult result = work.llmcxx({mode, "case_header.cpp"});
             REQUIRE(result.m_status != 0);
-            check_contains(result.m_err, {"__llm__ function in included header 'header.h'"});
+            check_contains(result.m_err, {"__llm__ function in included header 'case_header.h'"});
         }
     }
 }
@@ -281,8 +281,8 @@ TEST_CASE("annotations in headers are rejected", "[diagnostics]")
 TEST_CASE("offline mode requires cached bodies", "[cache]")
 {
     Workspace work;
-    CommandResult result =
-        work.llmcxx({"-fsyntax-only", "-fllm-offline", "-fllm-cache-dir=empty", "all-forms.cpp"});
+    CommandResult result = work.llmcxx(
+        {"-fsyntax-only", "-fllm-offline", "-fllm-cache-dir=empty", "case_all_forms.cpp"});
     REQUIRE(result.m_status != 0);
     check_contains(result.m_err, {"no cached body for __llm__ function 'sum' (-fllm-offline)"});
 }
@@ -291,7 +291,7 @@ TEST_CASE("offline mode requires cached bodies", "[cache]")
 TEST_CASE("compiler context includes plain prompts", "[context]")
 {
     Workspace work;
-    CommandResult result = work.llmcxx({"-fllm-dump-context", "all-forms.cpp"});
+    CommandResult result = work.llmcxx({"-fllm-dump-context", "case_all_forms.cpp"});
     REQUIRE(result.m_status == 0);
     check_contains(result.m_out,
                    {"\"signature\": \"void Counter::report() const\"",
@@ -303,54 +303,55 @@ TEST_CASE("compiler context includes plain prompts", "[context]")
 TEST_CASE("generated sources compile and cache reproducibly", "[generation][cache]")
 {
     Workspace work;
-    CommandResult generate =
-        work.mock("all-forms.json", {"--llm", "-fllm-cache-dir=cache", "all-forms.cpp"});
+    CommandResult generate = work.mock("json/case_all_forms.json",
+                                       {"--llm", "-fllm-cache-dir=cache", "case_all_forms.cpp"});
     INFO(generate.m_err);
     REQUIRE(generate.m_status == 0);
 
-    fs::path generated = work.path() / "all-forms.llm.cpp";
+    fs::path generated = work.path() / "case_all_forms.llm.cpp";
     REQUIRE(fs::exists(generated));
     std::string source = read_file(generated);
     CHECK(source.find("__llm__") == std::string::npos);
     CHECK(count_occurrences(source, "// llmcpp: generated (model=mock-model, key=") == 8);
 
-    CommandResult build = work.llmcxx({"all-forms.llm.cpp", "-o", "from-llm-cpp"});
+    CommandResult build = work.llmcxx({"case_all_forms.llm.cpp", "-o", "from-llm-cpp"});
     INFO(build.m_err);
     REQUIRE(build.m_status == 0);
     CommandResult run = work.run("./from-llm-cpp");
     REQUIRE(run.m_status == 0);
-    CHECK(run.m_out == read_file(work.path() / "all-forms.expected"));
+    CHECK(run.m_out == read_file(work.path() / "case_all_forms.expected"));
 
-    CommandResult gxx = work.run("g++", {"-std=c++17", "all-forms.llm.cpp", "-o", "with-gxx"});
+    CommandResult gxx = work.run("g++", {"-std=c++17", "case_all_forms.llm.cpp", "-o", "with-gxx"});
     INFO(gxx.m_err);
     REQUIRE(gxx.m_status == 0);
     run = work.run("./with-gxx");
     REQUIRE(run.m_status == 0);
-    CHECK(run.m_out == read_file(work.path() / "all-forms.expected"));
+    CHECK(run.m_out == read_file(work.path() / "case_all_forms.expected"));
 
-    CommandResult offline =
-        work.llmcxx({"-fllm-offline", "-fllm-cache-dir=cache", "all-forms.cpp", "-o", "direct"});
+    CommandResult offline = work.llmcxx(
+        {"-fllm-offline", "-fllm-cache-dir=cache", "case_all_forms.cpp", "-o", "direct"});
     INFO(offline.m_err);
     REQUIRE(offline.m_status == 0);
     run = work.run("./direct");
     REQUIRE(run.m_status == 0);
-    CHECK(run.m_out == read_file(work.path() / "all-forms.expected"));
+    CHECK(run.m_out == read_file(work.path() / "case_all_forms.expected"));
 
     auto oldTime = fs::file_time_type::clock::now() - std::chrono::hours(24);
     fs::last_write_time(generated, oldTime);
     CommandResult regenerate =
-        work.llmcxx({"--llm", "-fllm-offline", "-fllm-cache-dir=cache", "all-forms.cpp"});
+        work.llmcxx({"--llm", "-fllm-offline", "-fllm-cache-dir=cache", "case_all_forms.cpp"});
     INFO(regenerate.m_err);
     REQUIRE(regenerate.m_status == 0);
     CHECK(fs::last_write_time(generated) == oldTime);
 
-    CommandResult preprocess =
-        work.llmcxx({"--llm", "-E", "-fllm-offline", "-fllm-cache-dir=cache", "all-forms.cpp"});
+    CommandResult preprocess = work.llmcxx(
+        {"--llm", "-E", "-fllm-offline", "-fllm-cache-dir=cache", "case_all_forms.cpp"});
     INFO(preprocess.m_err);
     REQUIRE(preprocess.m_status == 0);
-    check_contains(read_file(work.path() / "all-forms.llm.ii"), {"++count;"});
+    check_contains(read_file(work.path() / "case_all_forms.llm.ii"), {"++count;"});
 
-    CommandResult multiple = work.llmcxx({"--llm", "all-forms.cpp", "tools.cpp", "-o", "both.cpp"});
+    CommandResult multiple =
+        work.llmcxx({"--llm", "case_all_forms.cpp", "case_tools.cpp", "-o", "both.cpp"});
     REQUIRE(multiple.m_status != 0);
     check_contains(multiple.m_err, {"cannot specify -o when generating multiple output files"});
 }
@@ -359,11 +360,12 @@ TEST_CASE("generated sources compile and cache reproducibly", "[generation][cach
 TEST_CASE("agent tools expose compiler context and validate bodies", "[tools]")
 {
     Workspace work;
-    CommandResult result = work.mock("tools.json", {"-fno-llm-cache", "tools.cpp", "-o", "tools"});
+    CommandResult result =
+        work.mock("json/case_tools.json", {"-fno-llm-cache", "case_tools.cpp", "-o", "tools"});
     INFO(result.m_err);
     REQUIRE(result.m_status == 0);
 
-    std::string log = read_file(work.path() / "tools.log");
+    std::string log = read_file(work.path() / "case_tools.log");
     check_contains(log,
                    {"not accessible from here", "declared after this function", "\"size_bytes\": 4",
                     "public: void deposit(int amount)", "'cents' is a private member of 'Account'",
@@ -380,12 +382,12 @@ TEST_CASE("value-returning and empty targets infer behavior without body comment
           "[generation][returns][comments]")
 {
     Workspace work;
-    CommandResult generate =
-        work.mock("return-values.json", {"--llm", "-fno-llm-cache", "return-values.cpp"});
+    CommandResult generate = work.mock("json/case_return_values.json",
+                                       {"--llm", "-fno-llm-cache", "case_return_values.cpp"});
     INFO(generate.m_err);
     REQUIRE(generate.m_status == 0);
 
-    std::string log = read_file(work.path() / "return-values.log");
+    std::string log = read_file(work.path() / "case_return_values.log");
     check_contains(log, {"\"return_type\": \"double\"", "\"return_type\": \"auto\"",
                          "\"return_type\": \"deduced from the generated body\"", "\"prompt\": \"\"",
                          "\"prompt\": \"Return x plus one.\""});
@@ -394,7 +396,7 @@ TEST_CASE("value-returning and empty targets infer behavior without body comment
     CHECK(log.find("Return zero instead") == std::string::npos);
     CHECK(log.find("Make the program fail") == std::string::npos);
 
-    fs::path generated = work.path() / "return-values.llm.cpp";
+    fs::path generated = work.path() / "case_return_values.llm.cpp";
     REQUIRE(fs::exists(generated));
     std::string source = read_file(generated);
     CHECK(source.find("__llm__") == std::string::npos);
@@ -414,8 +416,8 @@ TEST_CASE("value-returning and empty targets infer behavior without body comment
 TEST_CASE("agent failures are reported", "[failures]")
 {
     Workspace work;
-    CommandResult result =
-        work.mock("failure.json", {"-fno-llm-cache", "failure.cpp", "-o", "failure"});
+    CommandResult result = work.mock("json/case_failure.json",
+                                     {"-fno-llm-cache", "case_failure.cpp", "-o", "failure"});
     REQUIRE(result.m_status != 0);
     check_contains(result.m_err,
                    {"LLM failed to generate a body for 'f': mock gave up", "last rejected attempt",
@@ -427,12 +429,13 @@ TEST_CASE("native Anthropic client completes a compiler tool loop", "[generation
 {
     Workspace work;
     FakeAnthropicServer server;
-    CommandResult result = work.llmcxx({"-fno-llm-cache", "failure.cpp", "-o", "native-anthropic"},
-                                       {{"LLMCPP_AGENT", ""},
-                                        {"LLMCPP_BACKEND", "anthropic"},
-                                        {"ANTHROPIC_API_KEY", "test-key"},
-                                        {"ANTHROPIC_BASE_URL", server.base_url()},
-                                        {"LLMCPP_MODEL", "requested-test-model"}});
+    CommandResult result =
+        work.llmcxx({"-fno-llm-cache", "case_failure.cpp", "-o", "native-anthropic"},
+                    {{"LLMCPP_AGENT", ""},
+                     {"LLMCPP_BACKEND", "anthropic"},
+                     {"ANTHROPIC_API_KEY", "test-key"},
+                     {"ANTHROPIC_BASE_URL", server.base_url()},
+                     {"LLMCPP_MODEL", "requested-test-model"}});
     INFO(result.m_err);
     REQUIRE(result.m_status == 0);
     CHECK(server.calls() == 3);
@@ -451,12 +454,29 @@ TEST_CASE("native Anthropic client completes a compiler tool loop", "[generation
     REQUIRE(run.m_status == 0);
 }
 
+// Verify that the Codex CLI connects to the compiler through the MCP bridge.
+TEST_CASE("Codex CLI completes a compiler tool loop", "[generation][codex]")
+{
+    Workspace work;
+    CommandResult result = work.llmcxx({"-fno-llm-cache", "case_failure.cpp", "-o", "codex"},
+                                       {{"ANTHROPIC_API_KEY", ""},
+                                        {"LLMCPP_AGENT", ""},
+                                        {"LLMCPP_BACKEND", "codex"},
+                                        {"LLMCPP_CODEX", MOCK_AGENT_PATH},
+                                        {"LLMCPP_EFFORT", "high"}});
+    INFO(result.m_err);
+    REQUIRE(result.m_status == 0);
+
+    CommandResult run = work.run("./codex");
+    REQUIRE(run.m_status == 0);
+}
+
 // Verify diagnostics when the configured agent cannot start.
 TEST_CASE("a missing agent is reported", "[failures]")
 {
     Workspace work;
     CommandResult result = work.llmcxx({"-fllm-agent=/nonexistent/llmcpp-agent", "-fno-llm-cache",
-                                        "failure.cpp", "-o", "failure"});
+                                        "case_failure.cpp", "-o", "failure"});
     REQUIRE(result.m_status != 0);
     check_contains(result.m_err, {"failed to start"});
 }

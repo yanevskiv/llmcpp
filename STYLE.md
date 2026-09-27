@@ -12,6 +12,10 @@ exercise unusual llmcpp syntax and are exempt where a test requires it.
 - Header-only value types and enums live under `include/llmcpp/data/` in the
   `llmcpp::data` namespace. Use their fully scoped `data::TypeName` spelling
   from within `llmcpp` implementation code.
+- Project-defined classes, structs, and enums begin with their PascalCase
+  module prefix. Module filenames begin with the same prefix in snake_case.
+  For example, `llmcpp::CompilerSandbox` lives in
+  `include/llmcpp/compiler_sandbox.h` and `src/llmcpp/compiler_sandbox.cpp`.
 - C++ filenames use lowercase `snake_case`.
 - Every project-defined class has a same-named header/source pair. Do not
   define a project class or struct in a `.cpp` file; declare it in its header

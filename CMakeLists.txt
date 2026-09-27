@@ -60,29 +60,29 @@ set(OPENSSL_CRYPTO_LIBRARY "${LLMCPP_DEPS_LIBDIR}/libcrypto.so")
 find_package(OpenSSL REQUIRED COMPONENTS SSL Crypto)
 
 add_executable(llmcxx
-  src/llmcpp/agent/anthropic_session.cpp
-  src/llmcpp/agent/agent_session.cpp
-  src/llmcpp/agent/tool_server.cpp
-  src/llmcpp/compiler/ast_text.cpp
-  src/llmcpp/compiler/probe_finder.cpp
-  src/llmcpp/compiler/type_tools.cpp
-  src/llmcpp/frontend/callbacks.cpp
-  src/llmcpp/frontend/candidate_collector.cpp
-  src/llmcpp/compiler/collector.cpp
-  src/llmcpp/driver/frontend_runner.cpp
-  src/llmcpp/frontend/guard_action.cpp
-  src/llmcpp/compiler/inspect_action.cpp
-  src/llmcpp/compiler/inspect_consumer.cpp
-  src/llmcpp/frontend/keyword_guard.cpp
-  src/llmcpp/frontend/pass_action.cpp
-  src/llmcpp/frontend/pass_consumer.cpp
-  src/llmcpp/compiler/shadow_compiler.cpp
-  src/llmcpp/driver/driver_app.cpp
-  src/llmcpp/driver/driver_options.cpp
-  src/llmcpp/generation/llm_pass.cpp
-  src/llmcpp/generation/pass.cpp
-  src/llmcpp/generation/pass_state.cpp
-  src/llmcpp/source/text.cpp
+  src/llmcpp/agent_anthropic_client.cpp
+  src/llmcpp/agent_session.cpp
+  src/llmcpp/agent_tool_server.cpp
+  src/llmcpp/compiler_ast_text.cpp
+  src/llmcpp/compiler_type_probe_finder.cpp
+  src/llmcpp/compiler_type_inspector.cpp
+  src/llmcpp/frontend_source_collector.cpp
+  src/llmcpp/frontend_candidate_collector.cpp
+  src/llmcpp/compiler_diagnostic_collector.cpp
+  src/llmcpp/driver_frontend_runner.cpp
+  src/llmcpp/frontend_guard_action.cpp
+  src/llmcpp/compiler_inspection_action.cpp
+  src/llmcpp/compiler_inspection_consumer.cpp
+  src/llmcpp/frontend_header_annotation_guard.cpp
+  src/llmcpp/frontend_generation_action.cpp
+  src/llmcpp/frontend_generation_consumer.cpp
+  src/llmcpp/compiler_sandbox.cpp
+  src/llmcpp/driver_app.cpp
+  src/llmcpp/driver_options.cpp
+  src/llmcpp/generation_entry_point.cpp
+  src/llmcpp/generation_pass.cpp
+  src/llmcpp/generation_context.cpp
+  src/llmcpp/source_text.cpp
   src/main.cpp
 )
 set_target_properties(llmcxx PROPERTIES

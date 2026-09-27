@@ -3,7 +3,7 @@
  */
 
 // Project header for driver application orchestration.
-#include "llmcpp/driver/driver_app.h"
+#include "llmcpp/driver_app.h"
 
 // LLVM headers for process initialization and target registration.
 #include "llvm/Support/InitLLVM.h"
@@ -17,6 +17,6 @@ int main(int argc, char **argv)
     llvm::InitializeAllTargetMCs();
     llvm::InitializeAllAsmPrinters();
     llvm::InitializeAllAsmParsers();
-    llmcpp::driver::DriverApp app(argc, argv);
+    llmcpp::DriverApp app(argc, argv);
     return app.run();
 }
