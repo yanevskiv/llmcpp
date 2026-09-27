@@ -248,15 +248,44 @@ TEST_CASE("target generation budgets are enforced", "[generation][options]")
     }
 }
 
+// Enforce target tool budgets independently of driver defaults.
+TEST_CASE("tool call modifier overrides driver defaults", "[generation][options]")
+{
+    llmcpp::test::TestWorkspace work;
+    std::string limit = "3";
+    bool allowed = true;
+    SECTION("target expands the driver budget") {}
+    SECTION("target restricts the driver budget")
+    {
+        limit = "1";
+        allowed = false;
+    }
+    std::ofstream(work.path() / "tools.cpp")
+        << "__llm__(max_tool_calls(" << limit << ")) int answer() { Return 42. }\n";
+    auto result =
+        work.mock("json/test_return_values.json",
+                  {"--llm", "-fllm-no-cache",
+                   "-fllm-max-tool-calls=" + std::string(allowed ? "1" : "10"), "tools.cpp"});
+    INFO(result.m_err);
+    CHECK((result.m_status == 0) == allowed);
+    CHECK(llmcpp::test::read_file(work.path() / "test_return_values.log")
+              .find("\"max_tool_calls\": " + limit) != std::string::npos);
+    if (!allowed) {
+        llmcpp::test::check_contains(
+            llmcpp::test::read_file(work.path() / "test_return_values.log"), {"tool call limit"});
+    }
+}
+
 // Reject malformed policies before contacting any model.
 TEST_CASE("invalid generation configuration is diagnosed", "[options]")
 {
     llmcpp::test::TestWorkspace work;
     for (const std::string &options :
-         {"timeout(0)", "model(2)", "cache(\"v1\"), no_cache", "timeout(1), timeout(2)",
-          "unknown(1)", "offline, no_cache", "offline, offline", "offline(1)", "key(\"xyz\")",
-          "key(\"abcdef\")", "key(2)", "key(\"abcdef0\"), no_cache", "backend(\"auto\")",
-          "backend(\"claude-code\")", "backend(2)", "backend(\"\")"}) {
+         {"timeout(0)", "max_tool_calls(0)", "max_tool_calls(\"2\")", "max_tool_calls(-1)",
+          "model(2)", "cache(\"v1\"), no_cache", "timeout(1), timeout(2)", "unknown(1)",
+          "offline, no_cache", "offline, offline", "offline(1)", "key(\"xyz\")", "key(\"abcdef\")",
+          "key(2)", "key(\"abcdef0\"), no_cache", "backend(\"auto\")", "backend(\"claude-code\")",
+          "backend(2)", "backend(\"\")"}) {
         std::ofstream(work.path() / "invalid.cpp") << "__llm__(" << options << ") int f() {}\n";
         llmcpp::test::TestCommandResult result = work.llmcpp({"-fllm-dump-context", "invalid.cpp"});
         INFO(options);
