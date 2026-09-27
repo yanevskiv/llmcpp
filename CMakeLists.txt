@@ -32,7 +32,7 @@ if(
 )
     message(
         FATAL_ERROR
-        "Dependencies are missing. Run ./fetch-deps.sh before configuring llmcpp."
+        "Dependencies are missing. Run ./do_fetch_deps.sh before configuring llmcpp."
     )
 endif()
 
@@ -235,10 +235,10 @@ if(BUILD_TESTING)
     add_executable(
         llmcpp-tests
         tests/llmcpp_tests.cpp
-        src/llmcpp/test/fake_anthropic_server.cpp
-        src/llmcpp/test/fake_openai_server.cpp
-        src/llmcpp/test/text.cpp
-        src/llmcpp/test/workspace.cpp
+        src/llmcpp/test/test_fake_anthropic_server.cpp
+        src/llmcpp/test/test_fake_openai_server.cpp
+        src/llmcpp/test/test_text.cpp
+        src/llmcpp/test/test_workspace.cpp
     )
     set_target_properties(
         llmcpp-tests

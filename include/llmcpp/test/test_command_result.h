@@ -10,7 +10,7 @@
 namespace llmcpp::test
 {
     /** Structure for child command status and output. */
-    struct CommandResult
+    struct TestCommandResult
     {
         /** Child process exit status. */
         int m_status;

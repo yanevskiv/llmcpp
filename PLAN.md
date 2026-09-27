@@ -473,7 +473,7 @@ llmcpp/
     lit/                 # clang lit tests (use mock agent)
     e2e/                 # real-LLM tests, opt-in, not in CI
   examples/              # sample programs using __llm__
-  scripts/build.sh       # cmake -G Ninja, clang only, Release+Assertions, lld, ccache
+  scripts/do_build.sh       # cmake -G Ninja, clang only, Release+Assertions, lld, ccache
                          # (install step adds the llmc++ symlink to clang)
 ```
 

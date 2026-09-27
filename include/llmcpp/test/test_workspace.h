@@ -5,7 +5,7 @@
 #ifndef LLMCPP_TEST_WORKSPACE_H
 #define LLMCPP_TEST_WORKSPACE_H
 
-#include "llmcpp/test/command_result.h"
+#include "llmcpp/test/test_command_result.h"
 
 #include <filesystem>
 #include <string>
@@ -15,13 +15,13 @@
 namespace llmcpp::test
 {
     /** Class for isolated fixture commands. */
-    class Workspace
+    class TestWorkspace
     {
     public:
         /** Initialize the isolated workspace. */
-        Workspace();
+        TestWorkspace();
         /** Stop and clean up the isolated workspace. */
-        ~Workspace();
+        ~TestWorkspace();
         /**
          * Get the workspace directory.
          * @return Isolated fixture directory.
@@ -34,16 +34,16 @@ namespace llmcpp::test
          * @param environment Environment overrides.
          * @return Exit status and captured output.
          */
-        CommandResult run(const std::string &executable,
-                          const std::vector<std::string> &arguments = {},
-                          const std::vector<std::pair<std::string, std::string>> &environment = {});
+        TestCommandResult
+        run(const std::string &executable, const std::vector<std::string> &arguments = {},
+            const std::vector<std::pair<std::string, std::string>> &environment = {});
         /**
          * Run llmc++.
          * @param arguments Compiler arguments.
          * @param environment Environment overrides.
          * @return Exit status and captured output.
          */
-        CommandResult
+        TestCommandResult
         llmcpp(const std::vector<std::string> &arguments,
                const std::vector<std::pair<std::string, std::string>> &environment = {});
         /**
@@ -52,7 +52,7 @@ namespace llmcpp::test
          * @param arguments Compiler arguments.
          * @return Exit status and captured output.
          */
-        CommandResult mock(const std::string &script, std::vector<std::string> arguments);
+        TestCommandResult mock(const std::string &script, std::vector<std::string> arguments);
 
     private:
         /** Isolated fixture directory. */

@@ -46,7 +46,7 @@ int main()
 Fetch dependencies and build `llmc++` once:
 
 ```sh
-./fetch-deps.sh && ./build.sh --parallel 8
+./do_fetch_deps.sh && ./do_build.sh --parallel 8
 ```
 
 Add the installed tools to this shell's `PATH`.
@@ -107,6 +107,69 @@ __llm__ double sqrt(double x) {
 | [Custom Python agent](examples/example18_custom_agent.cpp) | Connecting a tool-capable local model server through the public protocol. |
 | [Transcript replay](examples/example19_transcript.cpp) | Recording and replaying compiler tool calls without contacting a model. |
 | [Agent configuration](examples/example20_agent_configuration.cpp) | Selecting a backend and its options in a JSON file. |
+
+## Options
+
+### Command line
+
+| Option | Effect |
+| --- | --- |
+| `-fllm` | Accepted for compatibility; `__llm__` generation is already enabled. |
+| `-fllm-agent=<command>` | Run a custom external agent instead of selecting a backend. |
+| `-fllm-model=<id>` | Select a model, overriding `LLMCPP_MODEL`. |
+| `-fllm-system-prompt=<file>` | Replace the built-in system prompt with a UTF-8 file. |
+| `-fllm-append-system-prompt=<file>` | Append a UTF-8 file to the system prompt; repeat to append several files. |
+| `-fllm-agent-config=<file>` | Pass a JSON configuration object to an external agent. |
+| `-fllm-offline` | Use cached bodies only; never contact an agent. |
+| `-fllm-regenerate` | Ignore cached bodies and generate fresh ones. |
+| `-fno-llm-cache` | Disable cache reads and writes. |
+| `-fllm-cache-dir=<dir>` | Choose the cache directory; defaults to `.llmcache/` beside the source. |
+| `-fllm-max-attempts=<n>` | Limit rejected submissions per body; positive integer, default `4`. |
+| `-fllm-max-tool-calls=<n>` | Limit compiler tool calls per body; positive integer, default `60`. |
+| `-fllm-timeout=<seconds>` | Set the generation deadline per body; positive integer, default `600`. |
+| `-fllm-dump` | Print accepted generated bodies. |
+| `-fllm-dump-context` | Print task and compiler context without contacting an agent. |
+| `-fllm-verbose` | Log agent tool calls and short results. |
+| `-fllm-quiet` | Suppress normal generation progress. |
+| `-fllm-transcript=<file>` | Append generation, tool, and outcome events to a JSONL transcript. |
+| `--llm` | Write rewritten `<name>.llm.cpp` source and stop instead of compiling it. |
+
+### Environment variables
+
+> [!NOTE]
+> API credentials and endpoint variables are documented in
+> [How to configure an LLM agent](docs/how_to_configure_an_llm_agent.md).
+
+| Variable | Effect |
+| --- | --- |
+| `LLMCPP_BACKEND` | Select `auto` (default), `anthropic`, `openai`, `codex`, or `claude-code`. Automatic selection tries Anthropic, OpenAI, Codex, then Claude Code. |
+| `LLMCPP_AGENT` | Run a custom external agent command; overridden by `-fllm-agent`. |
+| `LLMCPP_MODEL` | Set the default model; overridden by `-fllm-model` and per-function `model(...)`. |
+| `LLMCPP_EFFORT` | Set reasoning effort for the Codex and Claude Code adapters; default `medium`. |
+| `LLMCPP_CODEX` | Choose the Codex executable; default `codex`. |
+| `LLMCPP_CLAUDE` | Choose the Claude Code executable; default `claude`. |
+| `LLMCPP_VERBOSE` | Enable Python adapter diagnostics when nonempty; also set by `-fllm-verbose`. |
+| `LLMCPP_DEPS_DIR` | Choose where `do_fetch_deps.sh` downloads dependencies; CMake still expects them under the project's `deps/`. |
+| `LLMCPP_MOCK_SCRIPT` | Select the JSON script for `agents/llmcpp-mock-agent`; used for testing. |
+| `LLMCPP_MOCK_LOG` | Choose where the mock agent appends its tool-call log. |
+
+### Attributes
+
+> [!NOTE]
+> Combine attributes with commas, for example
+> `__llm__(model("id"), no_cache, timeout(120))`. They override command-line
+> defaults, but cannot enable generation in offline mode. `cache` and `no_cache`
+> cannot be combined. Model names and cache salts must be nonempty quoted strings;
+> numeric limits must be positive integer literals.
+
+| Modifier | Effect |
+| --- | --- |
+| `__llm__` | Generate the body using the driver defaults. Parentheses are optional; `__llm__()` has the same effect. |
+| `__llm__(model("id"))` | Override the model for this function. |
+| `__llm__(no_cache)` | Disable cache reads and writes for this function. |
+| `__llm__(cache("salt"))` | Enable caching and add a salt to this function's cache key; the string is not a filename. |
+| `__llm__(max_attempts(2))` | Override the rejected-submission limit for this function. |
+| `__llm__(timeout(120))` | Override the generation deadline in seconds for this function. |
 
 ## Learn more
 
