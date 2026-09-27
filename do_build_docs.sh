@@ -1,18 +1,13 @@
 #!/bin/sh
 set -eu
 
-# Prefer the project's documentation environment when it is installed.
-if [ -x "$PWD/build/docs-venv/bin/sphinx-build" ]; then
-    PATH="$PWD/build/docs-venv/bin:$PATH"
-    export PATH
+# Keep documentation packages isolated from the system Python installation.
+DOCS_VENV="$PWD/build/out/docs_venv"
+if [ ! -x "${DOCS_VENV}/bin/python" ]; then
+    python3 -m venv "${DOCS_VENV}"
 fi
-
-if ! command -v sphinx-build >/dev/null 2>&1; then
-    echo "Sphinx is missing. Install the documentation tools:" >&2
-    echo "python3 -m venv build/docs-venv" >&2
-    echo "build/docs-venv/bin/pip install -r docs/web/requirements.txt" >&2
-    exit 1
-fi
+. "${DOCS_VENV}/bin/activate"
+python -m pip install -r docs/web/requirements.txt
 
 cmake -S . -B build/docs \
     -DLLMCPP_DOCS_ONLY=ON \
