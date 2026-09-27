@@ -389,7 +389,7 @@ the same.
 - Meant to be **committed**, like a lockfile. Code review sees exactly what the LLM
   wrote.
 - Modes: `-fllm-cache=readwrite` (default for dev), `-fllm-offline` (CI: fail
-  if missing, no network), `-fllm-force-regenerate` (ignore cache).
+  if missing, no network), `-fllm-regenerate` (ignore cache).
 
 ### 6.3 Performance
 - `llmcpp-prefill`: runs the compiler over a compile database with `-fllm-collect`,
@@ -417,7 +417,7 @@ Mitigations:
 - Generated code lives in virtual files named after the function (`<llm:ns::Widget::describe>`).
   Errors show the generated line plus
   `note: in body generated for __llm__ function declared here`.
-- `-fllm-dump`: print each generated body to stderr. `-fllm-dump-context`: print what
+- `-fllm-dump-code`: print each generated body to stderr. `-fllm-dump-context`: print what
   §4's `get_task`/`get_context` would return, without calling any LLM (very useful
   early on).
 - Debug info: include the generated source with DWARF 5 `DW_LNCT_LLVM_source` so
@@ -529,7 +529,7 @@ This works both with `llmc++ main.cpp` and with `llmc++ --llm main.cpp` followed
 `g++ main.llm.cpp`.
 
 **M4: Reproducibility and UX.** `.llmcache`, cache modes, context fingerprinting,
-diagnostic notes, `-fllm-dump`, debug info with embedded source.
+diagnostic notes, `-fllm-dump-code`, debug info with embedded source.
 
 **M5: Scale and hardening.** `--llm-headers`, `llmcpp-prefill`, ODR key policy plus the checker,
 templates, PCH-accelerated `try_compile`, clangd behavior, and bringing in constexpr.
@@ -575,7 +575,7 @@ llmc++ -fllm-system-prompt=PROMPT.md main.cpp
 It replaces the built-in prompt. Provide a separate composition option:
 
 ```sh
-llmc++ -fllm-append-system-prompt=PROJECT_RULES.md main.cpp
+llmc++ -fllm-append-prompt=PROJECT_RULES.md main.cpp
 ```
 
 Appending preserves the default tool-use and safety contract while allowing a

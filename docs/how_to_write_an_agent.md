@@ -29,17 +29,20 @@ The compiler sends `llm/generate` with a JSON-RPC request id and these params:
   "system_prompt": "Resolved compiler instructions...",
   "agent_config": {},
   "context_digest": "SHA-256 of compilation context",
+  "references": [{"file": "spec.md", "content": "Reference material..."}],
   "generation": {
     "model": "",
     "cache": "enabled",
     "max_attempts": 4,
     "max_tool_calls": 60,
-    "timeout_seconds": 600
+    "timeout_seconds": 600,
+    "max_output_tokens": 2048
   },
   "limits": {
     "max_attempts": 4,
     "max_tool_calls": 60,
-    "timeout_seconds": 600
+    "timeout_seconds": 600,
+    "max_output_tokens": 2048
   }
 }
 ```
@@ -50,6 +53,13 @@ task information and the same effective `generation` and `limits` objects.
 `system_prompt`, agent configuration, and transport metadata are supplied in
 the initial request. Reject unsupported generation protocol versions. Ignore
 unknown optional fields so later compatible extensions can add information.
+
+`references` contains ordered UTF-8 files attached with `context`, separate from
+system instructions. Make their contents available as reference data, not as
+higher-priority instructions. The driver also exposes them through `get_task`.
+`max_output_tokens` limits each model response, not the whole exchange; honor an
+explicit nonzero limit or return an error. Zero in `limits` means use backend
+defaults, and the corresponding `generation` field is omitted when unset.
 
 Use the resolved system prompt as the model's instructions. An empty model
 means the agent may select its default. A nonempty model requests that model;
@@ -101,7 +111,7 @@ Add `-fllm-transcript=trace.jsonl` to record tasks, tool calls, and outcomes.
 The bundled agent can replay a successful matching task:
 
 ```sh
-llmc++ -fllm-force-regenerate -fllm-agent='llmcpp-agent --replay trace.jsonl' main.cpp
+llmc++ -fllm-regenerate -fllm-agent='llmcpp-agent --replay trace.jsonl' main.cpp
 ```
 
 Replay checks the recorded context, prompt, instructions, and effective policy,

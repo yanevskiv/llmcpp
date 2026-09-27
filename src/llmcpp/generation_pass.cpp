@@ -241,7 +241,7 @@ namespace llmcpp
             std::vector<std::string> appendFiles;
             for (size_t i = 2; i < end;) {
                 std::string name = text.slice(tokens[i].m_begin, tokens[i].m_end).str();
-                if (!seen.insert(name).second && name != "append_system_prompt") {
+                if (!seen.insert(name).second && name != "append_prompt" && name != "context") {
                     error = "duplicate __llm__ option '" + name + "'";
                     return false;
                 }
@@ -250,10 +250,14 @@ namespace llmcpp
                     target.m_options.m_use_cache = false;
                 } else if (name == "offline") {
                     target.m_options.m_offline = true;
-                } else if (name == "force_regenerate") {
-                    target.m_options.m_force_regenerate = true;
-                } else if (name == "dump") {
-                    target.m_options.m_dump = true;
+                } else if (name == "regenerate") {
+                    target.m_options.m_regenerate = true;
+                } else if (name == "cache_read_only") {
+                    target.m_options.m_cache_read_only = true;
+                } else if (name == "explain_cache") {
+                    target.m_options.m_explain_cache = true;
+                } else if (name == "dump_code") {
+                    target.m_options.m_dump_code = true;
                 } else if (name == "dump_context") {
                     target.m_options.m_dump_context = true;
                 } else if (name == "verbose") {
@@ -267,8 +271,8 @@ namespace llmcpp
                     StringRef literal = text.slice(tokens[i + 1].m_begin, tokens[i + 1].m_end);
                     if (name == "model" || name == "cache_salt" || name == "key" ||
                         name == "backend" || name == "agent" || name == "cache_dir" ||
-                        name == "system_prompt" || name == "append_system_prompt" ||
-                        name == "agent_config" || name == "transcript") {
+                        name == "system_prompt" || name == "append_prompt" ||
+                        name == "agent_config" || name == "transcript" || name == "context") {
                         auto value = json::parse(literal);
                         if (!value) {
                             llvm::consumeError(value.takeError());
@@ -282,7 +286,21 @@ namespace llmcpp
                         }
                         if (name == "model") {
                             target.m_options.m_model = string->str();
-                        } else if (name == "append_system_prompt") {
+                        } else if (name == "context") {
+                            auto buffer = llvm::MemoryBuffer::getFile(*string);
+                            if (!buffer) {
+                                error = "cannot read context file '" + string->str() +
+                                        "': " + buffer.getError().message();
+                                return false;
+                            }
+                            if (!json::isUTF8((*buffer)->getBuffer())) {
+                                error = "context file '" + string->str() + "' is not UTF-8";
+                                return false;
+                            }
+                            target.m_options.m_context_files.push_back(string->str());
+                            target.m_options.m_context_contents.push_back(
+                                (*buffer)->getBuffer().str());
+                        } else if (name == "append_prompt") {
                             appendFiles.push_back(string->str());
                         } else if (name == "transcript") {
                             target.m_options.m_transcript_file = string->str();
@@ -318,7 +336,7 @@ namespace llmcpp
                             }
                             target.m_options.m_system_prompt = (*buffer)->getBuffer().str();
                             target.m_options.m_system_prompt_file = string->str();
-                            target.m_options.m_append_system_prompt_files.clear();
+                            target.m_options.m_append_prompt_files.clear();
                         } else if (name == "cache_dir") {
                             target.m_options.m_cache_dir = string->str();
                         } else if (name == "agent") {
@@ -349,7 +367,8 @@ namespace llmcpp
                             target.m_options.m_use_cache = true;
                         }
                     } else if (name == "cache_lifetime" || name == "max_attempts" ||
-                               name == "max_tool_calls" || name == "timeout") {
+                               name == "max_tool_calls" || name == "max_output_tokens" ||
+                               name == "timeout") {
                         unsigned value = 0;
                         if (literal.getAsInteger(10, value) ||
                             (!value && name != "cache_lifetime")) {
@@ -363,6 +382,8 @@ namespace llmcpp
                             target.m_options.m_cache_lifetime = value;
                         } else if (name == "max_attempts") {
                             target.m_options.m_max_attempts = value;
+                        } else if (name == "max_output_tokens") {
+                            target.m_options.m_max_output_tokens = value;
                         } else if (name == "max_tool_calls") {
                             target.m_options.m_max_tool_calls = value;
                         } else {
@@ -394,7 +415,7 @@ namespace llmcpp
                     target.m_options.m_system_prompt += "\n\n";
                 }
                 target.m_options.m_system_prompt += (*buffer)->getBuffer().str();
-                target.m_options.m_append_system_prompt_files.push_back(file);
+                target.m_options.m_append_prompt_files.push_back(file);
             }
             if (seen.count("cache_salt") && seen.count("no_cache")) {
                 error = "cache_salt and no_cache cannot be combined";
@@ -927,6 +948,16 @@ namespace llmcpp
                            sha256_hex(t.m_options.m_agent_config) + "\n" + t.m_options.m_backend +
                            "\n" + contextDigest +
                            (!t.m_agent_override ? "" : "\nagent:" + t.m_options.m_agent_command));
+            if (!t.m_options.m_context_files.empty()) {
+                json::Array references;
+                for (size_t i = 0; i < t.m_options.m_context_files.size(); ++i) {
+                    references.push_back(
+                        json::Object{{"file", t.m_options.m_context_files[i]},
+                                     {"content", t.m_options.m_context_contents[i]}});
+                }
+                t.m_key =
+                    sha256_hex(t.m_key + formatv("{0}", json::Value(std::move(references))).str());
+            }
             if (!t.m_cache_key.empty()) {
                 t.m_key = t.m_cache_key;
             }
@@ -943,16 +974,22 @@ namespace llmcpp
     // Generate and validate an implementation for one target.
     bool GenerationPass::generate(data::DataGenerationTarget &t)
     {
-        if (t.m_options.m_force_regenerate) {
+        if (!t.m_options.m_use_cache) {
+            explain_cache(t, "disabled: cache reads and writes are off");
+        } else if (t.m_options.m_regenerate) {
+            explain_cache(t, "bypass: regeneration requested, overriding offline mode");
+        }
+        if (t.m_options.m_regenerate) {
             t.m_options.m_offline = false;
         }
-        if (t.m_options.m_use_cache && !t.m_options.m_force_regenerate && read_cache(t)) {
+        if (t.m_options.m_use_cache && !t.m_options.m_regenerate && read_cache(t)) {
             t.m_generated = true;
+            explain_cache(t, "hit: " + cache_path(t));
             if (t.m_options.m_verbose) {
                 llvm::errs() << "llmc++: " << t.m_location << ": '" << t.m_name << "' from "
                              << cache_path(t) << "\n";
             }
-            dump(t);
+            dump_code(t);
             return true;
         }
         if (m_ci.getDiagnostics().hasErrorOccurred()) {
@@ -1017,8 +1054,11 @@ namespace llmcpp
         t.m_generated = true;
         t.m_date = current_time();
         t.m_agent_identity = agent_identity(t.m_options);
-        if (t.m_options.m_use_cache) {
+        if (t.m_options.m_use_cache && !t.m_options.m_cache_read_only) {
             write_cache(t);
+            explain_cache(t, "write requested: " + cache_path(t));
+        } else if (t.m_options.m_cache_read_only) {
+            explain_cache(t, "not written: cache is read-only");
         }
         if (t.m_options.m_verbose) {
             llvm::errs() << formatv("llmc++: {0}: generated '{1}' in {2:f1}s ({3}, "
@@ -1026,14 +1066,14 @@ namespace llmcpp
                                     t.m_location, t.m_name, seconds, t.m_model, out.m_tool_calls,
                                     out.m_tool_calls == 1 ? "" : "s");
         }
-        dump(t);
+        dump_code(t);
         return true;
     }
 
     // Print a target's generated implementation for diagnostics.
-    void GenerationPass::dump(const data::DataGenerationTarget &t) const
+    void GenerationPass::dump_code(const data::DataGenerationTarget &t) const
     {
-        if (t.m_options.m_dump) {
+        if (t.m_options.m_dump_code) {
             llvm::errs() << "llmc++: body of '" << t.m_name << "':\n"
                          << reindent(t.m_code, "    ") << "\n";
         }
@@ -1187,6 +1227,7 @@ namespace llmcpp
             StringRef key = content.drop_front(keyBegin + 8).split('\n').first;
             if (key == t.m_key || (!t.m_cache_key.empty() && key.starts_with(t.m_cache_key))) {
                 if (!matchedKey.empty() && matchedKey != key) {
+                    explain_cache(t, "miss: explicit key is ambiguous");
                     report(keyword_loc(t), DiagnosticsEngine::Error,
                            "ambiguous cache key '%0'; use a longer hash")
                         << t.m_cache_key;
@@ -1201,28 +1242,34 @@ namespace llmcpp
             if (llvm::sys::fs::status(path, status) ||
                 std::chrono::system_clock::now() - status.getLastModificationTime() >
                     std::chrono::seconds(t.m_options.m_cache_lifetime)) {
+                explain_cache(t, "miss: cache entry is missing or expired");
                 return false;
             }
         }
         auto buf = llvm::MemoryBuffer::getFile(path, true);
         if (!buf) {
+            explain_cache(t, "miss: no readable entry for this input identity; prompt, context, "
+                             "settings, backend, or salt may have changed");
             return false;
         }
         StringRef content = (*buf)->getBuffer();
         const StringRef separator = "\n// ---\n";
         size_t sep = content.find(separator);
         if (sep == StringRef::npos) {
+            explain_cache(t, "miss: malformed cache entry (no body separator)");
             return false;
         }
         StringRef metadata = content.take_front(sep);
         if (!metadata.contains("// version: " + std::string(CacheVersion) + "\n") ||
             !metadata.contains("// key: " + (matchedKey.empty() ? t.m_key : matchedKey) + "\n")) {
+            explain_cache(t, "miss: incompatible cache version or identity");
             return false;
         }
         if (t.m_cache_key.empty() &&
             (!metadata.contains("// context: " + t.m_context_digest + "\n") ||
              !metadata.contains("// system_prompt: " + sha256_hex(t.m_options.m_system_prompt) +
                                 "\n"))) {
+            explain_cache(t, "miss: compiler context or system prompt does not match");
             return false;
         }
         if (!matchedKey.empty()) {
@@ -1242,6 +1289,16 @@ namespace llmcpp
         }
         t.m_code = content.substr(sep + separator.size()).str();
         return true;
+    }
+
+    // Explain a cache decision without changing normal compiler output.
+    void GenerationPass::explain_cache(const data::DataGenerationTarget &t,
+                                       llvm::StringRef reason) const
+    {
+        if (t.m_options.m_explain_cache) {
+            llvm::errs() << "llmc++: cache '" << t.m_name << "' (" << t.m_key << "): " << reason
+                         << "\n";
+        }
     }
 
     // Store a generated implementation and its metadata atomically.

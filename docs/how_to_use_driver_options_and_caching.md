@@ -10,7 +10,7 @@ its own options control generation, budgets, and output.
 | Option | Effect |
 | --- | --- |
 | `--llm` | Write rewritten `<name>.llm.cpp` source and stop. |
-| `-fllm-dump` | Print each accepted generated body. |
+| `-fllm-dump-code` | Print each accepted generated body. |
 | `-fllm-dump-context` | Print the task and compiler context without contacting an LLM. |
 
 An output filename ending in `.cpp`, `.cc`, or `.cxx` also selects `--llm`
@@ -32,7 +32,7 @@ does not invalidate cached bodies, including older full-length filenames.
 | Option | Effect |
 | --- | --- |
 | `-fllm-offline` | Require cached bodies and never contact an agent unless force regeneration is enabled. |
-| `-fllm-force-regenerate` | Ignore matching entries and generate fresh bodies, overriding offline mode. |
+| `-fllm-regenerate` | Ignore matching entries and generate fresh bodies, overriding offline mode. |
 | `-fllm-no-cache` | Do not read or write the body cache. |
 | `-fllm-cache-dir=<dir>` | Store cache entries in another directory. |
 | `-fllm-cache-lifetime=<seconds>` | Limit cache file age; `0` means no expiry (default). |
@@ -67,7 +67,7 @@ regeneration. Cache metadata does not prove that a generated body is correct.
 | `-fllm-backend=<backend>` | Select a backend, overriding `LLMCPP_BACKEND`. |
 | `-fllm-model=<id>` | Request a model, overriding `LLMCPP_MODEL`. |
 | `-fllm-system-prompt=<file>` | Replace the built-in instructions with a UTF-8 file. |
-| `-fllm-append-system-prompt=<file>` | Append project instructions; repeat to append several files. |
+| `-fllm-append-prompt=<file>` | Append project instructions; repeat to append several files. |
 | `-fllm-agent-config=<file>` | Pass a JSON object to an external agent. |
 | `-fllm-max-attempts=<n>` | Limit rejected submissions for one body. |
 | `-fllm-max-tool-calls=<n>` | Limit compiler tool calls for one body. |
@@ -107,7 +107,7 @@ adds a salt to its key; the string is not a filename.
 These two options cannot be combined.
 `-fllm-cache-salt=scores-v1` sets the default salt for all functions without
 changing caching policy. A function's `cache_salt` replaces that default.
-`append_system_prompt("rules.md")` appends a UTF-8 file to a function's resolved
+`append_prompt("rules.md")` appends a UTF-8 file to a function's resolved
 instructions. It can be repeated, and appends after `system_prompt` regardless
 of modifier order. `agent_config("config.json")` replaces the external-agent
 configuration with a JSON object; its contents also affect the computed key.
@@ -129,7 +129,7 @@ Use `__llm__(offline)` to require a cached body for just one function. It enable
 cache reads even with `-fllm-no-cache` and reports an
 error on a cache miss without contacting an agent. It cannot be combined with
 `no_cache`.
-Use `__llm__(force_regenerate)` to skip cache reads and generate a fresh body
+Use `__llm__(regenerate)` to skip cache reads and generate a fresh body
 for one function. The new body is saved unless caching is disabled. Offline mode
 is overridden by force regeneration.
 Use `__llm__(key("abcdef0"))` to pin a cached implementation independently of the
@@ -154,8 +154,33 @@ and has the same effect.
 
 ## Control diagnostics
 
+Attach reference material with repeatable `-fllm-context=<file>` or
+`__llm__(context("file"))`. Files must be UTF-8 and paths are relative to the
+working directory. Function references follow command-line references, in order.
+These are reference data exposed through `get_task.references`, not system
+instructions. Their paths and contents participate in cache identities and
+transcript replay matching. `append_prompt` still appends system instructions.
+
+Use `-fllm-cache-read-only` or `__llm__(cache_read_only)` to allow cache hits
+and generation on misses without creating or modifying entries. This does not
+enable caching when `no_cache` is active, and does not permit generation while
+offline unless `regenerate` is also active.
+
+Use `-fllm-explain-cache` or `__llm__(explain_cache)` for cache hit, miss,
+bypass, and write decisions on stderr. A missing identity cannot establish exactly
+which input changed; the message identifies the possible inputs rather than
+claiming a particular one changed. It does not change cache identities.
+
+Use `-fllm-max-output-tokens=<n>` or `__llm__(max_output_tokens(n))` to limit
+each model response, not the whole generation exchange. Positive integers are
+required; API backends otherwise retain their 16000-token default. Explicit
+limits are rejected by the bundled Codex and Claude CLI adapters. Custom agents
+receive the limit in task settings and must enforce it or report an error.
+For OpenAI, the limit includes reasoning tokens as well as visible output;
+see the [Responses API reference](https://developers.openai.com/api/reference/cli/resources/responses/methods/create).
+
 Successful compilation is silent by default. Warnings and errors are still reported.
-Use `__llm__(dump)` to print just one function's accepted body, including when
+Use `__llm__(dump_code)` to print just one function's accepted body, including when
 it comes from cache.
 Use `__llm__(verbose)` for that function's progress and agent tool diagnostics.
 

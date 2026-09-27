@@ -40,7 +40,7 @@ adapter instead of a native API client.
 .B \-fllm\-offline
 Use cached bodies only. Do not contact an agent unless force regeneration is enabled.
 .TP
-.B \-fllm\-force\-regenerate
+.B \-fllm\-regenerate
 Ignore cached bodies and generate fresh ones, overriding offline mode.
 .TP
 .B \-fllm\-no\-cache
@@ -74,7 +74,7 @@ Set the generation deadline per body. Default: 600.
 Numeric limits must be positive integers, except cache lifetime, which also
 accepts zero for no expiry.
 .TP
-.B \-fllm\-dump
+.B \-fllm\-dump\-code
 Print accepted generated bodies.
 .TP
 .B \-fllm\-dump\-context
@@ -144,7 +144,7 @@ participate in the computed cache identity.
 .B no_cache
 Disable cache reads and writes for one function.
 .TP
-.B append_system_prompt("file")
+.B append_prompt("file")
 Append a UTF-8 file to this function's resolved instructions. May be repeated.
 Apply after system_prompt regardless of modifier order. Relative paths use
 the compiler's working directory.
@@ -172,7 +172,7 @@ Replace the default cache salt for this function with a nonempty string,
 not a filename.
 Cannot be combined with no_cache.
 .TP
-.B force_regenerate
+.B regenerate
 Ignore cached bodies and generate a fresh one for this function, overriding
 offline mode. Write the new body to cache unless caching is disabled.
 .TP
@@ -201,18 +201,39 @@ Override the compiler-tool call budget with a positive integer literal.
 .B timeout(seconds)
 Override the generation deadline with a positive integer literal.
 .TP
-.B dump
+.B dump_code
 Print this function's accepted body, including on cache hits.
 .TP
 .B verbose
 Print progress and agent tool diagnostics for this function.
 .PP
 Separate options with commas inside __llm__(...). Per-function options
-override driver defaults; force_regenerate also overrides offline mode.
+override driver defaults; regenerate also overrides offline mode.
 .SH MACROS
 .B __LLMCPP__
 is defined as 1 during compilation and preprocessing.
 Use #ifdef __LLMCPP__ to distinguish this compiler from other compilers.
+.SH REFERENCE MATERIAL AND CACHE DIAGNOSTICS
+.TP
+.BI \-fllm\-context= file
+Attach a UTF-8 reference file separately from system instructions. Repeatable.
+The context("file") modifier appends references for one function. Paths use the
+working directory; names and contents participate in cache identities.
+.TP
+.B \-fllm\-cache\-read\-only
+Allow cache hits and generation on misses without writing cache entries.
+The cache_read_only modifier applies this policy to one function. Does not
+enable disabled caching or override offline mode.
+.TP
+.B \-fllm\-explain\-cache
+Explain cache hits, misses, bypasses, and write decisions on stderr.
+The explain_cache modifier selects one function. Does not change cache keys.
+.TP
+.BI \-fllm\-max\-output\-tokens= n
+Limit output tokens per model response, not per generation exchange.
+The max_output_tokens(n) modifier overrides this limit for one function.
+Requires a positive integer. API backends default to 16000. Codex and Claude
+CLI adapters reject explicit limits; custom agents must enforce them or fail.
 .SH EXAMPLES
 .nf
 LLMCPP_BACKEND=codex llmc++ main.cpp \-o main

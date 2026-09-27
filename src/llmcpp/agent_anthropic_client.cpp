@@ -232,11 +232,12 @@ namespace llmcpp
         unsigned maxTurns = opts.m_max_tool_calls + 5;
 
         for (unsigned turn = 0; turn != maxTurns; ++turn) {
-            json::Object request{{"model", model},
-                                 {"max_tokens", 16000},
-                                 {"system", opts.m_system_prompt},
-                                 {"tools", toolsValue},
-                                 {"messages", messagesValue}};
+            json::Object request{
+                {"model", model},
+                {"max_tokens", opts.m_max_output_tokens ? opts.m_max_output_tokens : 16000},
+                {"system", opts.m_system_prompt},
+                {"tools", toolsValue},
+                {"messages", messagesValue}};
             json::Object response;
             if (!client.post(request, response, error)) {
                 return false;

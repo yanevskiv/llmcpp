@@ -100,7 +100,7 @@ __llm__ double sqrt(double x) {
 | [Top-k selection](examples/11_top_k_by.cpp) | A range template with a projection. |
 | [Projected frequency table](examples/12_projected_frequency_table.cpp) | An iterator template with a dependent return type. |
 | [System prompt](examples/13_system_prompt.cpp) | Replacing the compiler's generation instructions. |
-| [Project rules](examples/14_append_system_prompt.cpp) | Appending rules to the built-in instructions. |
+| [Project rules](examples/14_append_prompt.cpp) | Appending rules to the built-in instructions. |
 | [Model selection](examples/15_model.cpp) | Choosing a model for one function. |
 | [Cache policy](examples/16_cache_policy.cpp) | Disabling caching or naming a cache policy per function. |
 | [Generation limits](examples/17_generation_limits.cpp) | Setting attempts and timeout for one function. |
@@ -137,19 +137,23 @@ API credentials and endpoint variables are documented in
 | `-fllm-agent=<command>` | Run a custom external agent instead of selecting a backend. |
 | `-fllm-model=<id>` | Select a model, overriding `LLMCPP_MODEL`. |
 | `-fllm-system-prompt=<file>` | Replace the built-in system prompt with a UTF-8 file. |
-| `-fllm-append-system-prompt=<file>` | Append a UTF-8 file to the system prompt; repeat to append several files. |
+| `-fllm-append-prompt=<file>` | Append a UTF-8 file to the system prompt; repeat to append several files. |
 | `-fllm-agent-config=<file>` | Pass a JSON configuration object to an external agent. |
+| `-fllm-context=<file>` | Attach a UTF-8 reference file, separately from system instructions; repeatable. Contents participate in the cache identity. |
 | `-fllm-offline` | Use cached bodies only; never contact an agent unless force regeneration is enabled. |
-| `-fllm-force-regenerate` | Ignore cached bodies and generate fresh ones, overriding offline mode. |
+| `-fllm-regenerate` | Ignore cached bodies and generate fresh ones, overriding offline mode. |
 | `-fllm-no-cache` | Disable cache reads and writes. |
+| `-fllm-cache-read-only` | Allow cache hits and generation on misses, but never write or replace cache entries. Does not enable caching when disabled. |
+| `-fllm-explain-cache` | Explain cache hits, misses, bypasses, and write decisions on stderr. |
 | `-fllm-cache-dir=<dir>` | Choose the cache directory; defaults to `.llmcache/` beside the source. |
 | `-fllm-cache-salt=<salt>` | Add a nonempty default salt to computed cache keys; per-function `cache_salt` replaces it. Does not change caching policy. |
 | `-fllm-cache-lifetime=<seconds>` | Treat entries older than this file age as cache misses; `0` means no expiry (default). Offline builds fail on expired entries. |
 | `-fllm-hash-abbrev=<n>` | Display at least `n` hash characters and use them in cache filenames (default: 7; range: 1–64). Ambiguous prefixes grow automatically. |
 | `-fllm-max-attempts=<n>` | Limit rejected submissions per body; positive integer, default `4`. |
 | `-fllm-max-tool-calls=<n>` | Limit compiler tool calls per body; positive integer, default `60`. |
+| `-fllm-max-output-tokens=<n>` | Set a positive output-token limit per model response. API backends default to `16000`; Codex and Claude CLI adapters reject explicit limits. Custom agents must enforce the limit or report an error. |
 | `-fllm-timeout=<seconds>` | Set the generation deadline per body; positive integer, default `600`. |
-| `-fllm-dump` | Print accepted generated bodies. |
+| `-fllm-dump-code` | Print accepted generated bodies. |
 | `-fllm-dump-context` | Print task and compiler context without contacting an agent. |
 | `-fllm-verbose` | Print generation progress, agent tool calls, and short results. |
 | `-fllm-transcript=<file>` | Append generation, tool, and outcome events to a JSONL transcript. |
@@ -160,7 +164,7 @@ API credentials and endpoint variables are documented in
 
 Combine attributes with commas, for example
 `__llm__(model("id"), no_cache, timeout(120))`. They override command-line
-defaults; `force_regenerate` also overrides offline mode. `cache_salt` and `no_cache`
+defaults; `regenerate` also overrides offline mode. `cache_salt` and `no_cache`
 cannot be combined. Model names and cache salts must be nonempty quoted strings;
 numeric limits must be positive integer literals, except `cache_lifetime`, which
 also accepts `0` for no expiry.
@@ -172,18 +176,22 @@ also accepts `0` for no expiry.
 | `__llm__(agent("command"))` | Override the external agent command for this function; takes precedence over native backends. |
 | `__llm__(model("id"))` | Override the model for this function. |
 | `__llm__(system_prompt("file"))` | Replace this function's system prompt with a UTF-8 file, excluding driver-appended instructions. Relative paths use the compiler's working directory. |
-| `__llm__(append_system_prompt("file"))` | Append a UTF-8 file to this function's resolved system prompt. Repeat to append several files; applied after `system_prompt` regardless of modifier order. |
+| `__llm__(append_prompt("file"))` | Append a UTF-8 file to this function's resolved system prompt. Repeat to append several files; applied after `system_prompt` regardless of modifier order. |
 | `__llm__(agent_config("file"))` | Replace this function's external-agent configuration with a JSON object from a file. |
+| `__llm__(context("file"))` | Attach UTF-8 reference material to this function's task. Repeatable; appended after command-line context files. Relative paths use the working directory; contents participate in the cache identity. |
 | `__llm__(offline)` | Use a cached body only for this function; fail on a cache miss unless force regeneration is enabled. Cannot be combined with `no_cache`. |
-| `__llm__(force_regenerate)` | Ignore cached bodies and generate a fresh one for this function, overriding offline mode. Save the result unless caching is disabled. |
+| `__llm__(regenerate)` | Ignore cached bodies and generate a fresh one for this function, overriding offline mode. Save the result unless caching is disabled. |
 | `__llm__(no_cache)` | Disable cache reads and writes for this function. |
+| `__llm__(cache_read_only)` | Allow cache reads and generation but prohibit cache writes for this function. |
+| `__llm__(explain_cache)` | Explain this function's cache decisions on stderr. |
 | `__llm__(cache_dir("path"))` | Override the cache directory for this function. Relative paths use the compiler's working directory; caching policy is unchanged. |
 | `__llm__(cache_salt("salt"))` | Replace the default cache salt for this function; the string is not a filename. |
 | `__llm__(cache_lifetime(3600))` | Override the maximum cache file age in seconds for this function; `0` means no expiry. Applies even with an explicit `key`. |
 | `__llm__(max_attempts(2))` | Override the rejected-submission limit for this function. |
 | `__llm__(max_tool_calls(20))` | Override the compiler-tool call limit for this function. |
+| `__llm__(max_output_tokens(2048))` | Override the output-token limit per model response for this function; requires a positive integer. Backend restrictions are the same as the command-line option. |
 | `__llm__(timeout(120))` | Override the generation deadline in seconds for this function. |
-| `__llm__(dump)` | Print this function's accepted body, including on cache hits. |
+| `__llm__(dump_code)` | Print this function's accepted body, including on cache hits. |
 | `__llm__(dump_context)` | Print this function's task and compiler context. Stops the compilation without generating any bodies; only selected functions are printed. |
 | `__llm__(verbose)` | Print progress and agent tool diagnostics for this function. |
 | `__llm__(transcript("file"))` | Override the JSONL transcript destination for this function. Relative paths use the compiler's working directory. |

@@ -440,9 +440,17 @@ namespace llmcpp
                        {"language", language_name(c.getLangOpts())},
                        {"prompt", m_target.m_prompt_text}};
         o["generation"] = agent_generation_settings(m_target.m_options);
+        json::Array references;
+        for (size_t i = 0; i < m_target.m_options.m_context_files.size(); ++i) {
+            references.push_back(
+                json::Object{{"file", m_target.m_options.m_context_files[i]},
+                             {"content", m_target.m_options.m_context_contents[i]}});
+        }
+        o["references"] = std::move(references);
         o["limits"] = json::Object{{"max_attempts", m_target.m_options.m_max_attempts},
                                    {"max_tool_calls", m_target.m_options.m_max_tool_calls},
-                                   {"timeout_seconds", m_target.m_options.m_timeout_seconds}};
+                                   {"timeout_seconds", m_target.m_options.m_timeout_seconds},
+                                   {"max_output_tokens", m_target.m_options.m_max_output_tokens}};
         if (!m_target.m_lambda) {
             if (const RawComment *rc = c.getRawCommentForAnyRedecl(fd)) {
                 o["doc_comment"] = rc->getFormattedText(sm(), c.getDiagnostics());
