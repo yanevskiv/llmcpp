@@ -254,7 +254,8 @@ TEST_CASE("invalid generation configuration is diagnosed", "[options]")
     llmcpp::test::TestWorkspace work;
     for (const std::string &options :
          {"timeout(0)", "model(2)", "cache(\"v1\"), no_cache", "timeout(1), timeout(2)",
-          "unknown(1)", "offline, no_cache", "offline, offline", "offline(1)"}) {
+          "unknown(1)", "offline, no_cache", "offline, offline", "offline(1)", "key(\"xyz\")",
+          "key(\"abcdef\")", "key(2)", "key(\"abcdef0\"), no_cache"}) {
         std::ofstream(work.path() / "invalid.cpp") << "__llm__(" << options << ") int f() {}\n";
         llmcpp::test::TestCommandResult result = work.llmcpp({"-fllm-dump-context", "invalid.cpp"});
         INFO(options);
@@ -369,6 +370,69 @@ TEST_CASE("offline modifier requires a cached body", "[generation][cache][option
         REQUIRE(result.m_status == 0);
         llmcpp::test::check_contains(llmcpp::test::read_file(work.path() / "answer.llm.cpp"),
                                      {"return 42;"});
+    }
+}
+
+// Pin cached implementations independently of prompts and compilation context.
+TEST_CASE("explicit cache keys pin generated bodies", "[generation][cache][options]")
+{
+    llmcpp::test::TestWorkspace work;
+    std::ofstream(work.path() / "answer.cpp")
+        << "__llm__(key(\"ABCDEF0123\")) int answer() { Return 42. }\n";
+    auto result = work.mock("json/test_return_values.json",
+                            {"--llm", "-fllm-no-cache", "-fllm-cache-dir=cache", "answer.cpp"});
+    INFO(result.m_err);
+    REQUIRE(result.m_status == 0);
+    fs::path cache = work.path() / "cache/abcdef0.cpp";
+    REQUIRE(fs::exists(cache));
+    std::string metadata = llmcpp::test::read_file(cache);
+    llmcpp::test::check_contains(metadata, {"// key: abcdef0123\n", "return 42;"});
+    std::ofstream(work.path() / "answer.cpp")
+        << "__llm__(offline, key(\"abcdef0\")) int answer() { Return something else. }\n";
+    SECTION("cache hit ignores changed inputs")
+    {
+        std::ofstream(work.path() / "rules.md") << "Different system instructions.\n";
+        result = work.llmcpp({"--llm", "-fllm-cache-dir=cache", "-fllm-backend=claude",
+                              "-fllm-system-prompt=rules.md", "answer.cpp"});
+        INFO(result.m_err);
+        REQUIRE(result.m_status == 0);
+        CHECK(llmcpp::test::read_file(cache) == metadata);
+        llmcpp::test::check_contains(llmcpp::test::read_file(work.path() / "answer.llm.cpp"),
+                                     {"return 42;"});
+    }
+    SECTION("prefix selects an ordinary computed cache hash")
+    {
+        std::ofstream(work.path() / "answer.cpp") << "__llm__ int answer() { Return 42. }\n";
+        result = work.mock("json/test_return_values.json",
+                           {"--llm", "-fllm-cache-dir=ordinary-cache", "answer.cpp"});
+        REQUIRE(result.m_status == 0);
+        std::string ordinary =
+            llmcpp::test::read_file(fs::directory_iterator(work.path() / "ordinary-cache")->path());
+        std::string key = ordinary.substr(ordinary.find("// key: ") + 8, 64);
+        std::ofstream(work.path() / "answer.cpp") << "__llm__(offline, key(\"" << key.substr(0, 7)
+                                                  << "\")) int answer() { A changed prompt. }\n";
+        result = work.llmcpp({"--llm", "-fllm-cache-dir=ordinary-cache", "answer.cpp"});
+        INFO(result.m_err);
+        REQUIRE(result.m_status == 0);
+        llmcpp::test::check_contains(llmcpp::test::read_file(work.path() / "answer.llm.cpp"),
+                                     {"return 42;"});
+    }
+    SECTION("ambiguous prefix is rejected")
+    {
+        std::string other = metadata;
+        other.replace(other.find("abcdef0123"), 10, "abcdef0456");
+        std::ofstream(work.path() / "cache/abcdef0456.cpp") << other;
+        result = work.llmcpp({"--llm", "-fllm-cache-dir=cache", "answer.cpp"});
+        REQUIRE(result.m_status != 0);
+        llmcpp::test::check_contains(result.m_err, {"ambiguous cache key"});
+    }
+    SECTION("an incompatible pinned body still fails compilation")
+    {
+        std::ofstream(work.path() / "answer.cpp")
+            << "__llm__(offline, key(\"abcdef0\")) void answer() {}\n";
+        result = work.llmcpp({"--llm", "-fllm-cache-dir=cache", "answer.cpp"});
+        REQUIRE(result.m_status != 0);
+        llmcpp::test::check_contains(result.m_err, {"does not compile"});
     }
 }
 

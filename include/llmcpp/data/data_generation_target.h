@@ -37,6 +37,8 @@ namespace llmcpp
             DataGenerationOptions m_options;
             /** Explicit project salt for this target's cache identity. */
             std::string m_cache_salt;
+            /** Explicit cache identity or unambiguous hexadecimal prefix supplied by the user. */
+            std::string m_cache_key;
             /** Digest of compilation arguments and visible source contents. */
             std::string m_context_digest;
             /** Source offset of the prompt body's opening brace. */

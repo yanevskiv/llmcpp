@@ -256,7 +256,7 @@ namespace llmcpp
                         return false;
                     }
                     StringRef literal = text.slice(tokens[i + 1].m_begin, tokens[i + 1].m_end);
-                    if (name == "model" || name == "cache") {
+                    if (name == "model" || name == "cache" || name == "key") {
                         auto value = json::parse(literal);
                         if (!value) {
                             llvm::consumeError(value.takeError());
@@ -270,6 +270,15 @@ namespace llmcpp
                         }
                         if (name == "model") {
                             target.m_options.m_model = string->str();
+                        } else if (name == "key") {
+                            if (string->size() < 7 || string->size() > 64 ||
+                                string->find_first_not_of("0123456789abcdefABCDEF") !=
+                                    StringRef::npos) {
+                                error = "expected 7 through 64 hexadecimal characters for __llm__ "
+                                        "option 'key'";
+                                return false;
+                            }
+                            target.m_cache_key = string->lower();
                         } else {
                             target.m_cache_salt = string->str();
                             target.m_options.m_use_cache = true;
@@ -305,6 +314,13 @@ namespace llmcpp
                 return false;
             }
             if (seen.count("offline")) {
+                target.m_options.m_use_cache = true;
+            }
+            if (seen.count("key") && seen.count("no_cache")) {
+                error = "key and no_cache cannot be combined";
+                return false;
+            }
+            if (seen.count("key")) {
                 target.m_options.m_use_cache = true;
             }
             return true;
@@ -810,6 +826,9 @@ namespace llmcpp
                                  t.m_cache_salt + "\n" + sha256_hex(t.m_options.m_system_prompt) +
                                  "\n" + sha256_hex(t.m_options.m_agent_config) + "\n" +
                                  t.m_options.m_backend + "\n" + contextDigest);
+            if (!t.m_cache_key.empty()) {
+                t.m_key = t.m_cache_key;
+            }
         }
     }
 
@@ -832,6 +851,9 @@ namespace llmcpp
             }
             dump(t);
             return true;
+        }
+        if (m_ci.getDiagnostics().hasErrorOccurred()) {
+            return false;
         }
         if (t.m_options.m_offline) {
             report(keyword_loc(t), DiagnosticsEngine::Error,
@@ -1039,9 +1061,10 @@ namespace llmcpp
     }
 
     // Load a compatible generated implementation from cache.
-    bool GenerationPass::read_cache(data::DataGenerationTarget &t) const
+    bool GenerationPass::read_cache(data::DataGenerationTarget &t)
     {
         std::string path = cache_path(t);
+        std::string matchedKey;
         std::error_code error;
         for (llvm::sys::fs::directory_iterator entry(cache_dir(), error), end;
              !error && entry != end; entry.increment(error)) {
@@ -1049,9 +1072,24 @@ namespace llmcpp
                 continue;
             }
             auto candidate = llvm::MemoryBuffer::getFile(entry->path());
-            if (candidate && (*candidate)->getBuffer().contains("// key: " + t.m_key + "\n")) {
+            if (!candidate) {
+                continue;
+            }
+            StringRef content = (*candidate)->getBuffer();
+            size_t keyBegin = content.find("// key: ");
+            if (keyBegin == StringRef::npos) {
+                continue;
+            }
+            StringRef key = content.drop_front(keyBegin + 8).split('\n').first;
+            if (key == t.m_key || (!t.m_cache_key.empty() && key.starts_with(t.m_cache_key))) {
+                if (!matchedKey.empty() && matchedKey != key) {
+                    report(keyword_loc(t), DiagnosticsEngine::Error,
+                           "ambiguous cache key '%0'; use a longer hash")
+                        << t.m_cache_key;
+                    return false;
+                }
+                matchedKey = key.str();
                 path = entry->path();
-                break;
             }
         }
         auto buf = llvm::MemoryBuffer::getFile(path, true);
@@ -1066,11 +1104,17 @@ namespace llmcpp
         }
         StringRef metadata = content.take_front(sep);
         if (!metadata.contains("// version: " + std::string(CacheVersion) + "\n") ||
-            !metadata.contains("// key: " + t.m_key + "\n") ||
-            !metadata.contains("// context: " + t.m_context_digest + "\n") ||
-            !metadata.contains("// system_prompt: " + sha256_hex(t.m_options.m_system_prompt) +
-                               "\n")) {
+            !metadata.contains("// key: " + (matchedKey.empty() ? t.m_key : matchedKey) + "\n")) {
             return false;
+        }
+        if (t.m_cache_key.empty() &&
+            (!metadata.contains("// context: " + t.m_context_digest + "\n") ||
+             !metadata.contains("// system_prompt: " + sha256_hex(t.m_options.m_system_prompt) +
+                                "\n"))) {
+            return false;
+        }
+        if (!matchedKey.empty()) {
+            t.m_key = matchedKey;
         }
         llvm::SmallVector<StringRef, 16> lines;
         content.substr(0, sep).split(lines, '\n');
