@@ -31,10 +31,11 @@ TEST_CASE("driver help includes generation options", "[options]")
         INFO(result.m_err);
         REQUIRE(result.m_status == 0);
         CHECK(result.m_err.empty());
-        llmcpp::test::check_contains(result.m_out, {"USAGE:", "LLMCPP OPTIONS:", "--llm",
-                                                    "-fllm-backend=", "-fllm-no-cache",
-                                                    "-fllm-transcript=", "-fllm-verbose",
-                                                    "-fllm-cache-lifetime=", "-fllm-cache-salt="});
+        llmcpp::test::check_contains(
+            result.m_out, {"USAGE:", "LLMCPP OPTIONS:", "--llm", "-fllm-backend=", "-fllm-no-cache",
+                           "-fllm-transcript=", "-fllm-verbose",
+                           "-fllm-cache-lifetime=", "-fllm-cache-salt=", "-fllm-force-regenerate"});
+        CHECK(result.m_out.find("-fllm-regenerate") == std::string::npos);
     }
 }
 
@@ -127,7 +128,7 @@ TEST_CASE("target options and prompt files reach the agent", "[generation][optio
     }
     CHECK(entries == 1);
     llmcpp::test::TestCommandResult replay = work.llmcpp(
-        {"--llm", "-fllm-cache-dir=cache", "-fllm-regenerate", "-fllm-model=default-model",
+        {"--llm", "-fllm-cache-dir=cache", "-fllm-force-regenerate", "-fllm-model=default-model",
          "-fllm-max-attempts=5", "-fllm-timeout=10", "-fllm-system-prompt=prompt.md",
          "-fllm-append-system-prompt=rules.md", "-fllm-agent-config=config.json",
          "-fllm-agent=" + (fs::path(LLMCPP_PATH).parent_path() / "llmcpp-agent").string() +
@@ -582,10 +583,6 @@ TEST_CASE("offline modifier requires a cached body", "[generation][cache][option
     std::vector<std::string> args{"--llm", "-fllm-cache-dir=cache",
                                   "-fllm-agent=/nonexistent/agent", "answer.cpp"};
     SECTION("cache hit") {}
-    SECTION("regeneration cannot contact an agent")
-    {
-        args.push_back("-fllm-regenerate");
-    }
     SECTION("modifier overrides disabled cache")
     {
         args.push_back("-fllm-no-cache");
@@ -604,6 +601,53 @@ TEST_CASE("offline modifier requires a cached body", "[generation][cache][option
         REQUIRE(result.m_status == 0);
         llmcpp::test::check_contains(llmcpp::test::read_file(work.path() / "answer.llm.cpp"),
                                      {"return 42;"});
+    }
+}
+
+// Force fresh bodies globally or per function, including in offline mode.
+TEST_CASE("force regeneration overrides cached bodies and offline mode", "[cache][options]")
+{
+    llmcpp::test::TestWorkspace work;
+    std::string modifiers;
+    std::vector<std::string> args{"--llm", "-fllm-cache-dir=cache", "answer.cpp"};
+    SECTION("command line overrides offline modifier")
+    {
+        modifiers = "offline";
+        args.push_back("-fllm-force-regenerate");
+    }
+    SECTION("modifier overrides command line offline")
+    {
+        modifiers = "force_regenerate";
+        args.push_back("-fllm-offline");
+    }
+    SECTION("modifier overrides offline modifier")
+    {
+        modifiers = "offline, force_regenerate";
+    }
+    SECTION("command line overrides command line offline")
+    {
+        args.push_back("-fllm-offline");
+        args.push_back("-fllm-force-regenerate");
+    }
+    std::ofstream(work.path() / "answer.cpp")
+        << "__llm__(" << modifiers << ") int answer() { Return 42. }\n";
+    auto result = work.mock("json/test_return_values.json", args);
+    INFO(result.m_err);
+    REQUIRE(result.m_status == 0);
+    for (const auto &entry : fs::directory_iterator(work.path() / "cache")) {
+        std::string body = llmcpp::test::read_file(entry.path());
+        size_t offset = body.find("return 42;");
+        REQUIRE(offset != std::string::npos);
+        body.replace(offset, 10, "return 41;");
+        std::ofstream(entry.path()) << body;
+    }
+    result = work.mock("json/test_return_values.json", args);
+    INFO(result.m_err);
+    REQUIRE(result.m_status == 0);
+    llmcpp::test::check_contains(llmcpp::test::read_file(work.path() / "answer.llm.cpp"),
+                                 {"return 42;"});
+    for (const auto &entry : fs::directory_iterator(work.path() / "cache")) {
+        llmcpp::test::check_contains(llmcpp::test::read_file(entry.path()), {"return 42;"});
     }
 }
 
@@ -862,7 +906,7 @@ TEST_CASE("cache hashes abbreviate without losing identity", "[generation][cache
         conflicting.replace(keyBegin, 64, other);
         std::ofstream(cache.parent_path() / (other + ".cpp")) << conflicting;
         args.erase(args.begin() + 1);
-        args.push_back("-fllm-regenerate");
+        args.push_back("-fllm-force-regenerate");
         result = work.mock("json/test_return_values.json", args);
         INFO(result.m_err);
         REQUIRE(result.m_status == 0);
@@ -881,8 +925,8 @@ TEST_CASE("cache hashes abbreviate without losing identity", "[generation][cache
     SECTION("an occupied prefix is not overwritten")
     {
         std::ofstream(cache) << "unrelated cache contents\n";
-        result = work.mock("json/test_return_values.json",
-                           {"--llm", "-fllm-regenerate", "-fllm-cache-dir=cache", "answer.cpp"});
+        result = work.mock("json/test_return_values.json", {"--llm", "-fllm-force-regenerate",
+                                                            "-fllm-cache-dir=cache", "answer.cpp"});
         INFO(result.m_err);
         REQUIRE(result.m_status == 0);
         CHECK(llmcpp::test::read_file(cache) == "unrelated cache contents\n");

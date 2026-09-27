@@ -39,7 +39,7 @@ namespace llmcpp
             /** Whether generation must use only cached results. */
             bool m_offline = false;
             /** Whether cached results should be ignored. */
-            bool m_regenerate = false;
+            bool m_force_regenerate = false;
             /** Whether generated results should be read from and written to cache. */
             bool m_use_cache = true;
             /** Directory used for generated-result cache entries. */

@@ -250,6 +250,8 @@ namespace llmcpp
                     target.m_options.m_use_cache = false;
                 } else if (name == "offline") {
                     target.m_options.m_offline = true;
+                } else if (name == "force_regenerate") {
+                    target.m_options.m_force_regenerate = true;
                 } else if (name == "dump") {
                     target.m_options.m_dump = true;
                 } else if (name == "dump_context") {
@@ -941,8 +943,10 @@ namespace llmcpp
     // Generate and validate an implementation for one target.
     bool GenerationPass::generate(data::DataGenerationTarget &t)
     {
-        if (t.m_options.m_use_cache && (!m_opts.m_regenerate || t.m_options.m_offline) &&
-            read_cache(t)) {
+        if (t.m_options.m_force_regenerate) {
+            t.m_options.m_offline = false;
+        }
+        if (t.m_options.m_use_cache && !t.m_options.m_force_regenerate && read_cache(t)) {
             t.m_generated = true;
             if (t.m_options.m_verbose) {
                 llvm::errs() << "llmc++: " << t.m_location << ": '" << t.m_name << "' from "

@@ -215,7 +215,7 @@ namespace llmcpp
                "                                 Append system instructions; repeatable\n"
                "  -fllm-agent-config=<file>       Pass a JSON configuration object to the agent\n"
                "  -fllm-offline                   Use cached bodies only\n"
-               "  -fllm-regenerate                Ignore cached bodies and generate again\n"
+               "  -fllm-force-regenerate         Generate fresh bodies, overriding offline mode\n"
                "  -fllm-no-cache                  Disable cache reads and writes\n"
                "  -fllm-cache-dir=<directory>     Override the source's .llmcache directory\n"
                "  -fllm-cache-salt=<salt>         Add a default salt to computed cache keys\n"
@@ -272,8 +272,8 @@ namespace llmcpp
             }
         } else if (arg == "-fllm-offline") {
             m_options.m_offline = true;
-        } else if (arg == "-fllm-regenerate") {
-            m_options.m_regenerate = true;
+        } else if (arg == "-fllm-force-regenerate") {
+            m_options.m_force_regenerate = true;
         } else if (arg == "-fllm-no-cache") {
             m_options.m_use_cache = false;
         } else if (arg.consume_front("-fllm-cache-dir=")) {
