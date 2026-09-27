@@ -11,8 +11,8 @@ __llm__(no_cache) int lowest(const std::vector<int> &scores)
     Return the lowest score, or zero if scores is empty.
 }
 
-// Keep an independently named cache policy for a reviewed implementation.
-__llm__(cache("scores-v1")) int highest(const std::vector<int> &scores)
+// Salt the cache identity for a reviewed implementation.
+__llm__(cache_salt("scores-v1")) int highest(const std::vector<int> &scores)
 {
     Return the highest score, or zero if scores is empty.
 }

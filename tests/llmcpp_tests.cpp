@@ -119,8 +119,9 @@ TEST_CASE("target options and prompt files reach the agent", "[generation][optio
     for (const auto &entry : fs::directory_iterator(work.path() / "cache")) {
         ++entries;
         std::string cache = llmcpp::test::read_file(entry.path());
-        llmcpp::test::check_contains(
-            cache, {"// version: llmcpp-cache-3", "// context:", "// system_prompt:", "// agent:"});
+        llmcpp::test::check_contains(cache, {"// version: llmcpp-cache-3",
+                                             "// context:", "// system_prompt:", "// agent:",
+                                             "// cache_salt: \"reviewed\""});
         CHECK(entry.path().stem().string().size() == 7);
     }
     CHECK(entries == 1);
@@ -337,12 +338,29 @@ TEST_CASE("tool call modifier overrides driver defaults", "[generation][options]
 TEST_CASE("invalid generation configuration is diagnosed", "[options]")
 {
     llmcpp::test::TestWorkspace work;
-    for (const std::string &options :
-         {"timeout(0)", "max_tool_calls(0)", "max_tool_calls(\"2\")", "max_tool_calls(-1)",
-          "model(2)", "cache(\"v1\"), no_cache", "timeout(1), timeout(2)", "unknown(1)",
-          "offline, no_cache", "offline, offline", "offline(1)", "key(\"xyz\")", "key(\"abcdef\")",
-          "key(2)", "key(\"abcdef0\"), no_cache", "backend(\"auto\")", "backend(\"claude-code\")",
-          "backend(2)", "backend(\"\")"}) {
+    for (const std::string &options : {"timeout(0)",
+                                       "max_tool_calls(0)",
+                                       "max_tool_calls(\"2\")",
+                                       "max_tool_calls(-1)",
+                                       "model(2)",
+                                       "cache_salt(\"v1\"), no_cache",
+                                       "cache(\"v1\")",
+                                       "cache_salt(\"\")",
+                                       "cache_salt(2)",
+                                       "cache_salt(\"v1\"), cache_salt(\"v2\")",
+                                       "timeout(1), timeout(2)",
+                                       "unknown(1)",
+                                       "offline, no_cache",
+                                       "offline, offline",
+                                       "offline(1)",
+                                       "key(\"xyz\")",
+                                       "key(\"abcdef\")",
+                                       "key(2)",
+                                       "key(\"abcdef0\"), no_cache",
+                                       "backend(\"auto\")",
+                                       "backend(\"claude-code\")",
+                                       "backend(2)",
+                                       "backend(\"\")"}) {
         std::ofstream(work.path() / "invalid.cpp") << "__llm__(" << options << ") int f() {}\n";
         llmcpp::test::TestCommandResult result = work.llmcpp({"-fllm-dump-context", "invalid.cpp"});
         INFO(options);
