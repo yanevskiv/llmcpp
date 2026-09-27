@@ -3,19 +3,19 @@ repos:
     hooks:
       - id: llmcpp-style-contract
         name: llmcpp style contract
-        entry: python3 python/check_style.py
+        entry: python3 scripts/check_style.py
         language: system
         pass_filenames: false
-        files: ^(include/|src/|test/integration_tests\.cpp$)
+        files: ^(include/|src/|tests/llmcpp_tests\.cpp$)
       - id: clang-format
         name: clang-format
         entry: clang-format --dry-run --Werror
         language: system
         types_or: [c++, c]
-        files: ^(include/|src/|test/integration_tests\.cpp$)
+        files: ^(include/|src/|tests/llmcpp_tests\.cpp$)
       - id: clang-tidy-naming
         name: clang-tidy naming
         entry: scripts/check_clang_tidy.sh
         language: system
         pass_filenames: false
-        files: ^(include/|src/|test/integration_tests\.cpp$)
+        files: ^(include/|src/|tests/llmcpp_tests\.cpp$)

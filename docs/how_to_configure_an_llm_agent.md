@@ -100,7 +100,7 @@ through newline-delimited JSON-RPC over standard input and output. It acts as
 an MCP client: it lists and calls the compiler tools, then returns the result of
 the `llm/generate` request.
 
-The deterministic agent under `test/mock-agent/` uses this interface in the
+The deterministic `agents/llmcpp-mock-agent` uses this interface in the
 integration suite.
 
 The public generation protocol is version 1. See

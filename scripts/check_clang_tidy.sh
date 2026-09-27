@@ -18,7 +18,7 @@ if [ -z "$resource_dir" ]; then
     exit 1
 fi
 
-find src test -type f -name '*.cpp' ! -path 'test/cases/*' -print0 |
+find src tests -type f -name '*.cpp' ! -path 'tests/test_*' -print0 |
     xargs -0 -n 1 clang-tidy -p "$build_dir" \
         --extra-arg="-resource-dir=$resource_dir" \
         --header-filter='^.*/include/llmcpp/.*' \

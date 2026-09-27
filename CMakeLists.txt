@@ -165,7 +165,7 @@ target_link_libraries(
 )
 
 # Agent launcher distributed with the driver.
-set(LLMCPP_AGENT_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/python/llmcpp-agent")
+set(LLMCPP_AGENT_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/agents/llmcpp-agent")
 set(LLMCPP_AGENT_BINARY "${CMAKE_BINARY_DIR}/bin/llmcpp-agent")
 
 add_custom_command(
@@ -232,12 +232,20 @@ if(BUILD_TESTING)
         EXCLUDE_FROM_ALL
     )
 
-    add_executable(llmcpp-tests test/integration_tests.cpp)
+    add_executable(
+        llmcpp-tests
+        tests/llmcpp_tests.cpp
+        src/llmcpp/test/fake_anthropic_server.cpp
+        src/llmcpp/test/fake_openai_server.cpp
+        src/llmcpp/test/text.cpp
+        src/llmcpp/test/workspace.cpp
+    )
     set_target_properties(
         llmcpp-tests
         PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
     )
     target_compile_features(llmcpp-tests PRIVATE cxx_std_17)
+    target_include_directories(llmcpp-tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include")
     target_include_directories(
         llmcpp-tests
         SYSTEM PRIVATE "${LLMCPP_CPPHTTPLIB_INCLUDE_DIR}"
@@ -247,8 +255,8 @@ if(BUILD_TESTING)
         llmcpp-tests
         PRIVATE
             LLMCPP_PATH="$<TARGET_FILE:llmcpp>"
-            MOCK_AGENT_PATH="${CMAKE_CURRENT_SOURCE_DIR}/test/mock-agent/llmcpp-mock-agent"
-            TEST_CASES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test/cases"
+            MOCK_AGENT_PATH="${CMAKE_CURRENT_SOURCE_DIR}/agents/llmcpp-mock-agent"
+            TEST_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests"
     )
     add_dependencies(llmcpp-tests llmcpp)
     install(TARGETS llmcpp-tests RUNTIME DESTINATION bin)
