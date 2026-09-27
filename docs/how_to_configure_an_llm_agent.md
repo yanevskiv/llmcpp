@@ -1,30 +1,57 @@
 # How to configure an LLM agent
 
-`llmc++` has a native Anthropic Messages API client. It uses `cpp-httplib`,
-OpenSSL, and the compiler's existing JSON and tool implementations, so this
-path does not start the Python `llmcpp-agent` program.
+`llmc++` can use Codex, Claude Code, or the Anthropic API to write an annotated
+function body. If you already use one of the CLI tools, the quickest setup is
+to reuse that login.
 
-The backend choices are:
+| Backend | Select it with | What you need |
+| --- | --- | --- |
+| Codex | `LLMCPP_BACKEND=codex` | An installed and logged-in `codex` CLI |
+| Claude Code | `LLMCPP_BACKEND=claude-code` | An installed and logged-in `claude` CLI |
+| Anthropic API | `LLMCPP_BACKEND=anthropic` | `ANTHROPIC_API_KEY` |
 
-| Backend | Selection | Implementation | Authentication |
-| --- | --- | --- | --- |
-| Anthropic API | `LLMCPP_BACKEND=anthropic` | Native C++ HTTPS client | `ANTHROPIC_API_KEY` |
-| Claude Code | `LLMCPP_BACKEND=claude-code` | Python adapter and `claude` CLI | Existing Claude Code login |
+## Use Codex
 
-When `LLMCPP_BACKEND` is unset or `auto`, `llmc++` uses its native API client
-if `ANTHROPIC_API_KEY` is present. Otherwise it starts the adjacent
-`llmcpp-agent`, which selects Claude Code when available. Set `LLMCPP_MODEL` to
-choose a model. Claude Code also accepts `LLMCPP_EFFORT`, which defaults to
-`medium`. `ANTHROPIC_BASE_URL` may override the API origin for a compatible
-endpoint.
+After installing the [Codex CLI](https://developers.openai.com/codex/cli/reference)
+and logging in, select it in the shell where you compile:
 
-Set `LLMCPP_AGENT` or `-fllm-agent=<command>` to force an external agent. An
-explicit external-agent setting takes precedence over native backend selection.
-The command must speak the project's newline-delimited JSON-RPC/MCP protocol
-over standard input and output. This mechanism is used by the Claude Code
-adapter and by the deterministic test agent.
+```sh
+export LLMCPP_BACKEND=codex
+llmc++ main.cpp -o main
+```
 
-For example, use the Anthropic API in the current shell:
+The Python adapter starts `codex exec` once for each body that needs to be
+generated. It gives Codex a temporary read-only workspace and exposes the
+compiler-context tools through a temporary MCP server. Your normal Codex login
+is available, but user configuration is not loaded and the temporary workspace
+does not contain your project files.
+
+Set `LLMCPP_MODEL` to a model identifier accepted by your Codex installation.
+Set `LLMCPP_EFFORT` when you want to override the reasoning effort:
+
+```sh
+export LLMCPP_EFFORT=high
+```
+
+Set `LLMCPP_CODEX` if the executable is not named `codex` or is not on `PATH`.
+
+## Use Claude Code
+
+Select Claude Code in the same way:
+
+```sh
+export LLMCPP_BACKEND=claude-code
+llmc++ main.cpp -o main
+```
+
+This backend starts `claude -p` and gives it the same compiler tools through
+MCP. `LLMCPP_MODEL` and `LLMCPP_EFFORT` are passed to the CLI. Set
+`LLMCPP_CLAUDE` to use a different executable.
+
+## Use the Anthropic API
+
+The Anthropic client runs inside the C++ driver, so it does not start Python or
+a separate CLI:
 
 ```sh
 export LLMCPP_BACKEND=anthropic
@@ -32,13 +59,32 @@ export ANTHROPIC_API_KEY=your-api-key
 llmc++ main.cpp -o main
 ```
 
-Use an existing Claude Code login instead:
+`LLMCPP_MODEL` selects the model. If it is unset, the prototype uses
+`claude-opus-5`. `ANTHROPIC_BASE_URL` can point the client at an API-compatible
+endpoint.
 
-```sh
-export LLMCPP_BACKEND=claude-code
-llmc++ main.cpp -o main
-```
+## Let llmc++ choose
+
+When `LLMCPP_BACKEND` is unset or set to `auto`, selection follows this order:
+
+1. Use the native Anthropic client when `ANTHROPIC_API_KEY` is set.
+2. Otherwise use Codex when `codex` is on `PATH`.
+3. Otherwise use Claude Code when `claude` is on `PATH`.
+
+Set the backend explicitly when more than one is available and you care which
+one handles generation.
+
+## Use a custom agent
+
+`-fllm-agent=<command>` or `LLMCPP_AGENT=<command>` bypasses backend selection
+and starts that command instead. A custom agent communicates with `llmc++`
+through newline-delimited JSON-RPC over standard input and output. It acts as
+an MCP client: it lists and calls the compiler tools, then returns the result of
+the `llm/generate` request.
+
+The deterministic agent under `test/mock-agent/` uses this interface in the
+integration suite.
 
 > [!TIP]
-> Use `-fllm-dump-context` to inspect the task and compiler context without
-> contacting an LLM.
+> Run `llmc++ -fllm-dump-context source.cpp` to inspect the task and compiler
+> context without contacting any backend.
