@@ -119,6 +119,11 @@ Override the model for one function.
 .B no_cache
 Disable cache reads and writes for one function.
 .TP
+.B offline
+Require a cached body for one function and fail on a cache miss without contacting
+an agent. Enable cache reads even with \-fllm\-no\-cache and ignore
+\-fllm\-regenerate. Cannot be combined with no_cache.
+.TP
 .B cache("salt")
 Enable caching and add a nonempty salt to the cache key, not a filename.
 Cannot be combined with no_cache.

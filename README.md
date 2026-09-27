@@ -167,6 +167,7 @@ numeric limits must be positive integer literals.
 | `__llm__` | Generate the body using the driver defaults. Parentheses are optional; `__llm__()` has the same effect. |
 | `__llm__(model("id"))` | Override the model for this function. |
 | `__llm__(no_cache)` | Disable cache reads and writes for this function. |
+| `__llm__(offline)` | Use a cached body only for this function, even with `-fllm-regenerate`; fail on a cache miss. Cannot be combined with `no_cache`. |
 | `__llm__(cache("salt"))` | Enable caching and add a salt to this function's cache key; the string is not a filename. |
 | `__llm__(max_attempts(2))` | Override the rejected-submission limit for this function. |
 | `__llm__(timeout(120))` | Override the generation deadline in seconds for this function. |

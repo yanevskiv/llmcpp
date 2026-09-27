@@ -252,8 +252,9 @@ TEST_CASE("target generation budgets are enforced", "[generation][options]")
 TEST_CASE("invalid generation configuration is diagnosed", "[options]")
 {
     llmcpp::test::TestWorkspace work;
-    for (const std::string &options : {"timeout(0)", "model(2)", "cache(\"v1\"), no_cache",
-                                       "timeout(1), timeout(2)", "unknown(1)"}) {
+    for (const std::string &options :
+         {"timeout(0)", "model(2)", "cache(\"v1\"), no_cache", "timeout(1), timeout(2)",
+          "unknown(1)", "offline, no_cache", "offline, offline", "offline(1)"}) {
         std::ofstream(work.path() / "invalid.cpp") << "__llm__(" << options << ") int f() {}\n";
         llmcpp::test::TestCommandResult result = work.llmcpp({"-fllm-dump-context", "invalid.cpp"});
         INFO(options);
@@ -331,6 +332,44 @@ TEST_CASE("generated sources compile and cache reproducibly", "[generation][cach
     REQUIRE(multiple.m_status != 0);
     llmcpp::test::check_contains(multiple.m_err,
                                  {"cannot specify -o when generating multiple output files"});
+}
+
+// Require cached bodies for individual targets without contacting an agent.
+TEST_CASE("offline modifier requires a cached body", "[generation][cache][options]")
+{
+    llmcpp::test::TestWorkspace work;
+    std::ofstream(work.path() / "answer.cpp") << "__llm__(       ) int answer() { Return 42. }\n";
+    auto result =
+        work.mock("json/test_return_values.json", {"--llm", "-fllm-cache-dir=cache", "answer.cpp"});
+    INFO(result.m_err);
+    REQUIRE(result.m_status == 0);
+    std::ofstream(work.path() / "answer.cpp") << "__llm__(offline) int answer() { Return 42. }\n";
+    std::vector<std::string> args{"--llm", "-fllm-cache-dir=cache",
+                                  "-fllm-agent=/nonexistent/agent", "answer.cpp"};
+    SECTION("cache hit") {}
+    SECTION("regeneration cannot contact an agent")
+    {
+        args.push_back("-fllm-regenerate");
+    }
+    SECTION("modifier overrides disabled cache")
+    {
+        args.push_back("-fllm-no-cache");
+    }
+    SECTION("cache miss")
+    {
+        args.push_back("-fllm-cache-dir=missing-cache");
+    }
+    result = work.llmcpp(args);
+    INFO(result.m_err);
+    if (args.back() == "-fllm-cache-dir=missing-cache") {
+        REQUIRE(result.m_status != 0);
+        llmcpp::test::check_contains(result.m_err, {"no cached body", "offline"});
+        CHECK(result.m_err.find("failed to start") == std::string::npos);
+    } else {
+        REQUIRE(result.m_status == 0);
+        llmcpp::test::check_contains(llmcpp::test::read_file(work.path() / "answer.llm.cpp"),
+                                     {"return 42;"});
+    }
 }
 
 // Verify short hashes, prefix collisions, and stable metadata across cache hits.
