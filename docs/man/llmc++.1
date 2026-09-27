@@ -49,6 +49,11 @@ Disable cache reads and writes.
 .BI \-fllm\-cache\-dir= directory
 Choose the cache directory. The default is .llmcache beside the source file.
 .TP
+.BI \-fllm\-cache\-lifetime= seconds
+Set the maximum cache file age in seconds. Default: 0, no expiry.
+Expired entries are cache misses; offline builds fail instead of generating.
+Age uses file modification time, which cache hits do not refresh.
+.TP
 .BI \-fllm\-hash\-abbrev= count
 Set the minimum hash length in generated comments and cache filenames.
 Default: 7. Range: 1 through 64. Ambiguous prefixes grow automatically.
@@ -62,7 +67,8 @@ Limit compiler tool calls per body. Default: 60.
 .TP
 .BI \-fllm\-timeout= seconds
 Set the generation deadline per body. Default: 600.
-All numeric limits must be positive integers.
+Numeric limits must be positive integers, except cache lifetime, which also
+accepts zero for no expiry.
 .TP
 .B \-fllm\-dump
 Print accepted generated bodies.
@@ -153,6 +159,11 @@ are errors. Enable caching; cannot be combined with no_cache.
 Override the directory for this function's cache reads, writes, and hash
 collision checks. Relative paths use the compiler's working directory.
 Do not change whether caching is enabled.
+.TP
+.B cache_lifetime(seconds)
+Override the maximum cache file age for one function. Zero means no expiry.
+Expired entries are cache misses, including with an explicit key; offline builds
+fail instead of generating. Age uses file modification time; hits do not refresh it.
 .TP
 .B max_attempts(count)
 Override the rejected-submission limit with a positive integer literal.

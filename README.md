@@ -143,6 +143,7 @@ API credentials and endpoint variables are documented in
 | `-fllm-regenerate` | Ignore cached bodies and generate fresh ones. |
 | `-fllm-no-cache` | Disable cache reads and writes. |
 | `-fllm-cache-dir=<dir>` | Choose the cache directory; defaults to `.llmcache/` beside the source. |
+| `-fllm-cache-lifetime=<seconds>` | Treat entries older than this file age as cache misses; `0` means no expiry (default). Offline builds fail on expired entries. |
 | `-fllm-hash-abbrev=<n>` | Display at least `n` hash characters and use them in cache filenames (default: 7; range: 1–64). Ambiguous prefixes grow automatically. |
 | `-fllm-max-attempts=<n>` | Limit rejected submissions per body; positive integer, default `4`. |
 | `-fllm-max-tool-calls=<n>` | Limit compiler tool calls per body; positive integer, default `60`. |
@@ -160,7 +161,8 @@ Combine attributes with commas, for example
 `__llm__(model("id"), no_cache, timeout(120))`. They override command-line
 defaults, but cannot enable generation in offline mode. `cache_salt` and `no_cache`
 cannot be combined. Model names and cache salts must be nonempty quoted strings;
-numeric limits must be positive integer literals.
+numeric limits must be positive integer literals, except `cache_lifetime`, which
+also accepts `0` for no expiry.
 
 | Modifier | Effect |
 | --- | --- |
@@ -174,6 +176,7 @@ numeric limits must be positive integer literals.
 | `__llm__(key("hash"))` | Use an explicit cache identity (7 to 64 hexadecimal characters). An unambiguous prefix can select an existing body despite changed inputs; a miss generates and saves under this key. Cannot be combined with `no_cache`. |
 | `__llm__(cache_salt("salt"))` | Add a salt to this function's cache key; the string is not a filename. |
 | `__llm__(cache_dir("path"))` | Override the cache directory for this function. Relative paths use the compiler's working directory; caching policy is unchanged. |
+| `__llm__(cache_lifetime(3600))` | Override the maximum cache file age in seconds for this function; `0` means no expiry. Applies even with an explicit `key`. |
 | `__llm__(max_attempts(2))` | Override the rejected-submission limit for this function. |
 | `__llm__(max_tool_calls(20))` | Override the compiler-tool call limit for this function. |
 | `__llm__(timeout(120))` | Override the generation deadline in seconds for this function. |

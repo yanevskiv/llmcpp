@@ -44,6 +44,8 @@ namespace llmcpp
             bool m_use_cache = true;
             /** Directory used for generated-result cache entries. */
             std::string m_cache_dir;
+            /** Maximum cache file age in seconds, or zero for no expiry. */
+            unsigned m_cache_lifetime = 0;
             /** Minimum number of hexadecimal characters in displayed hashes and cache filenames. */
             unsigned m_hash_abbrev = 7;
             /** Whether generated bodies should be printed. */

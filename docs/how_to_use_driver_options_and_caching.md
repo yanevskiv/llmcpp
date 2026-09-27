@@ -35,6 +35,7 @@ does not invalidate cached bodies, including older full-length filenames.
 | `-fllm-regenerate` | Ignore matching entries and generate fresh bodies. |
 | `-fllm-no-cache` | Do not read or write the body cache. |
 | `-fllm-cache-dir=<dir>` | Store cache entries in another directory. |
+| `-fllm-cache-lifetime=<seconds>` | Limit cache file age; `0` means no expiry (default). |
 | `-fllm-hash-abbrev=<n>` | Set the minimum displayed hash and cache filename length (default: 7; range: 1–64). Colliding prefixes grow automatically. |
 
 Commit the cache when you want reviewed generated bodies and reproducible
@@ -127,6 +128,12 @@ changed prompt or signature.
 `cache_dir("reviewed-cache")` overrides the directory for one function's cache
 reads, writes, and hash collision checks. Relative paths use the compiler's
 working directory. It does not enable caching when caching is disabled.
+`cache_lifetime(3600)` overrides the command-line lifetime for one function.
+Cache age is measured from the cache file's modification time; hits do not refresh
+it. Expired entries are cache misses: normal builds generate a replacement, while
+offline builds fail without contacting an agent. Expiration also applies to
+explicit `key` selections. `0` disables expiry; negative or noninteger values are
+errors. Changing the command-line lifetime does not change cache identities.
 Existing bare `__llm__` modifiers remain valid. `__llm__()` is also accepted
 and has the same effect.
 

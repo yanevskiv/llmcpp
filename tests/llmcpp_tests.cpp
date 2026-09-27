@@ -31,9 +31,9 @@ TEST_CASE("driver help includes generation options", "[options]")
         INFO(result.m_err);
         REQUIRE(result.m_status == 0);
         CHECK(result.m_err.empty());
-        llmcpp::test::check_contains(result.m_out, {"USAGE:", "LLMCPP OPTIONS:", "--llm",
-                                                    "-fllm-backend=", "-fllm-no-cache",
-                                                    "-fllm-transcript=", "-fllm-verbose"});
+        llmcpp::test::check_contains(
+            result.m_out, {"USAGE:", "LLMCPP OPTIONS:", "--llm", "-fllm-backend=", "-fllm-no-cache",
+                           "-fllm-transcript=", "-fllm-verbose", "-fllm-cache-lifetime="});
     }
 }
 
@@ -475,6 +475,120 @@ TEST_CASE("offline modifier requires a cached body", "[generation][cache][option
         REQUIRE(result.m_status == 0);
         llmcpp::test::check_contains(llmcpp::test::read_file(work.path() / "answer.llm.cpp"),
                                      {"return 42;"});
+    }
+}
+
+// Expire cache entries by age without changing their computed identities.
+TEST_CASE("cache lifetime expires old entries", "[generation][cache][options]")
+{
+    llmcpp::test::TestWorkspace work;
+    std::ofstream(work.path() / "answer.cpp") << "__llm__ int answer() { Return 42. }\n";
+    std::vector<std::string> args{"--llm", "-fllm-cache-dir=cache", "answer.cpp"};
+    auto result = work.mock("json/test_return_values.json", args);
+    INFO(result.m_err);
+    REQUIRE(result.m_status == 0);
+    fs::path cache = fs::directory_iterator(work.path() / "cache")->path();
+    auto oldTime = fs::file_time_type::clock::now() - std::chrono::hours(2);
+    bool expired = false;
+    bool regenerate = false;
+    SECTION("fresh entry is reusable")
+    {
+        args.push_back("-fllm-cache-lifetime=3600");
+    }
+    SECTION("default has no expiry")
+    {
+        fs::last_write_time(cache, oldTime);
+    }
+    SECTION("zero disables expiry")
+    {
+        fs::last_write_time(cache, oldTime);
+        args.push_back("-fllm-cache-lifetime=0");
+    }
+    SECTION("offline rejects expired entry")
+    {
+        fs::last_write_time(cache, oldTime);
+        args.push_back("-fllm-cache-lifetime=3600");
+        expired = true;
+    }
+    SECTION("online replaces expired entry")
+    {
+        fs::last_write_time(cache, oldTime);
+        args.push_back("-fllm-cache-lifetime=3600");
+        regenerate = true;
+    }
+    if (regenerate) {
+        result = work.mock("json/test_return_values.json", args);
+        INFO(result.m_err);
+        REQUIRE(result.m_status == 0);
+        CHECK(fs::last_write_time(cache) > oldTime);
+        CHECK(std::distance(fs::directory_iterator(cache.parent_path()),
+                            fs::directory_iterator{}) == 1);
+    } else {
+        auto before = fs::last_write_time(cache);
+        args.push_back("-fllm-offline");
+        result = work.llmcpp(args);
+        INFO(result.m_err);
+        CHECK((result.m_status != 0) == expired);
+        CHECK(fs::last_write_time(cache) == before);
+        if (expired) {
+            llmcpp::test::check_contains(result.m_err, {"no cached body"});
+        }
+    }
+}
+
+// Override driver lifetimes per function, including pinned offline cache entries.
+TEST_CASE("cache lifetime modifier overrides driver defaults", "[generation][cache][options]")
+{
+    llmcpp::test::TestWorkspace work;
+    std::ofstream(work.path() / "answer.cpp")
+        << "__llm__(key(\"abcdef0123\")) int answer() { Return 42. }\n";
+    auto result =
+        work.mock("json/test_return_values.json", {"--llm", "-fllm-cache-dir=cache", "answer.cpp"});
+    REQUIRE(result.m_status == 0);
+    fs::path cache = work.path() / "cache/abcdef0.cpp";
+    auto oldTime = fs::file_time_type::clock::now() - std::chrono::hours(2);
+    fs::last_write_time(cache, oldTime);
+    std::string lifetime = "0";
+    std::string driverLifetime = "1";
+    bool expired = false;
+    SECTION("zero overrides finite driver lifetime") {}
+    SECTION("target permits longer lifetime")
+    {
+        lifetime = "10800";
+    }
+    SECTION("target expires a pinned entry despite unlimited driver lifetime")
+    {
+        lifetime = "3600";
+        driverLifetime = "0";
+        expired = true;
+    }
+    std::ofstream(work.path() / "answer.cpp")
+        << "__llm__(offline, key(\"abcdef0123\"), cache_lifetime(" << lifetime
+        << ")) int answer() { Return 42. }\n";
+    result =
+        work.llmcpp({"--llm", "-fllm-cache-dir=cache", "-fllm-cache-lifetime=" + driverLifetime,
+                     "-fllm-agent=/nonexistent/agent", "answer.cpp"});
+    INFO(result.m_err);
+    CHECK((result.m_status != 0) == expired);
+    CHECK(fs::last_write_time(cache) == oldTime);
+    CHECK(result.m_err.find("failed to start") == std::string::npos);
+}
+
+// Reject invalid lifetimes on the command line and individual targets.
+TEST_CASE("cache lifetime requires nonnegative integers", "[options]")
+{
+    llmcpp::test::TestWorkspace work;
+    for (const char *value : {"-1", "abc", "1.5", "4294967296", ""}) {
+        auto result = work.llmcpp(
+            {std::string("-fllm-cache-lifetime=") + value, "-fsyntax-only", "test_all_forms.cpp"});
+        REQUIRE(result.m_status != 0);
+        llmcpp::test::check_contains(result.m_err, {"invalid value for -fllm-cache-lifetime"});
+    }
+    for (const char *value : {"-1", "\"1\"", "1.5", "4294967296", ""}) {
+        std::ofstream(work.path() / "invalid.cpp")
+            << "__llm__(cache_lifetime(" << value << ")) int answer() {}\n";
+        auto result = work.llmcpp({"-fllm-dump-context", "invalid.cpp"});
+        REQUIRE(result.m_status != 0);
     }
 }
 

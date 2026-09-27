@@ -319,14 +319,20 @@ namespace llmcpp
                             target.m_cache_salt = string->str();
                             target.m_options.m_use_cache = true;
                         }
-                    } else if (name == "max_attempts" || name == "max_tool_calls" ||
-                               name == "timeout") {
+                    } else if (name == "cache_lifetime" || name == "max_attempts" ||
+                               name == "max_tool_calls" || name == "timeout") {
                         unsigned value = 0;
-                        if (literal.getAsInteger(10, value) || !value) {
-                            error = "expected a positive integer for __llm__ option '" + name + "'";
+                        if (literal.getAsInteger(10, value) ||
+                            (!value && name != "cache_lifetime")) {
+                            error =
+                                "expected a " +
+                                std::string(name == "cache_lifetime" ? "nonnegative" : "positive") +
+                                " integer for __llm__ option '" + name + "'";
                             return false;
                         }
-                        if (name == "max_attempts") {
+                        if (name == "cache_lifetime") {
+                            target.m_options.m_cache_lifetime = value;
+                        } else if (name == "max_attempts") {
                             target.m_options.m_max_attempts = value;
                         } else if (name == "max_tool_calls") {
                             target.m_options.m_max_tool_calls = value;
@@ -1132,6 +1138,14 @@ namespace llmcpp
                 }
                 matchedKey = key.str();
                 path = entry->path();
+            }
+        }
+        if (t.m_options.m_cache_lifetime) {
+            llvm::sys::fs::file_status status;
+            if (llvm::sys::fs::status(path, status) ||
+                std::chrono::system_clock::now() - status.getLastModificationTime() >
+                    std::chrono::seconds(t.m_options.m_cache_lifetime)) {
+                return false;
             }
         }
         auto buf = llvm::MemoryBuffer::getFile(path, true);
