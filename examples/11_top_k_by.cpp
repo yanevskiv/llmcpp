@@ -3,7 +3,7 @@
  */
 
 // Example type for tasks ranked by a projection.
-#include "include/example11_task.h"
+#include "include/11_task.h"
 
 #include <cstddef>
 #include <iostream>

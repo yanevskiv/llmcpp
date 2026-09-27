@@ -3,7 +3,7 @@
  */
 
 // Example type for people grouped by a projection.
-#include "include/example12_person.h"
+#include "include/12_person.h"
 
 #include <cstddef>
 #include <iostream>

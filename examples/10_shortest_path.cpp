@@ -3,7 +3,7 @@
  */
 
 // Example type for a weighted adjacency list.
-#include "include/example10_graph.h"
+#include "include/10_graph.h"
 
 #include <iostream>
 #include <vector>

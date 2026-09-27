@@ -3,7 +3,7 @@
  */
 
 // Example interface for reserving inventory.
-#include "include/example07_inventory.h"
+#include "include/07_inventory.h"
 
 // Standard header for output.
 #include <iostream>
