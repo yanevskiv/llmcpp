@@ -1,0 +1,141 @@
+.TH LLMC++ 1 "" "llmcpp" "User Commands"
+.SH NAME
+llmc++ \- compile C++ with LLM-generated function bodies
+.SH SYNOPSIS
+.B llmc++
+.RI [ options ] " source ..."
+.SH DESCRIPTION
+llmc++ is a Clang-based C++ compiler driver. Functions and lambdas marked
+with __llm__ have their bodies generated from the instructions inside their
+braces. Generated bodies are checked by the compiler before acceptance.
+Other compiler and linker options are forwarded to Clang.
+.PP
+The modifier accepts an optional parenthesized list of per-function options.
+Generation requires a configured backend unless accepted bodies are cached.
+.SH OPTIONS
+.TP
+.B \-fllm
+Accepted for compatibility. Generation is already enabled.
+.TP
+.BI \-fllm\-agent= command
+Run an external JSON-RPC agent instead of selecting a backend.
+.TP
+.BI \-fllm\-model= id
+Select the default model, overriding LLMCPP_MODEL.
+.TP
+.BI \-fllm\-system\-prompt= file
+Replace the built-in system prompt with a UTF-8 file.
+.TP
+.BI \-fllm\-append\-system\-prompt= file
+Append a UTF-8 file to the system prompt. May be repeated.
+.TP
+.BI \-fllm\-agent\-config= file
+Pass a JSON configuration object to an external agent. Selects the Python
+adapter instead of a native API client.
+.TP
+.B \-fllm\-offline
+Use cached bodies only. Do not contact an agent.
+.TP
+.B \-fllm\-regenerate
+Ignore cached bodies and generate fresh ones.
+.TP
+.B \-fno\-llm\-cache
+Disable cache reads and writes.
+.TP
+.BI \-fllm\-cache\-dir= directory
+Choose the cache directory. The default is .llmcache beside the source file.
+.TP
+.BI \-fllm\-max\-attempts= count
+Limit rejected submissions per body. Default: 4.
+.TP
+.BI \-fllm\-max\-tool\-calls= count
+Limit compiler tool calls per body. Default: 60.
+.TP
+.BI \-fllm\-timeout= seconds
+Set the generation deadline per body. Default: 600.
+All numeric limits must be positive integers.
+.TP
+.B \-fllm\-dump
+Print accepted generated bodies.
+.TP
+.B \-fllm\-dump\-context
+Print task and compiler context without contacting an agent.
+.TP
+.B \-fllm\-verbose
+Log agent tool calls and short results.
+.TP
+.B \-fllm\-quiet
+Suppress normal generation progress.
+.TP
+.BI \-fllm\-transcript= file
+Append generation, tool, and outcome events to a JSONL transcript.
+.TP
+.B \-\-llm
+Write rewritten source and stop instead of compiling. Output defaults to
+<name>.llm.cpp, or <name>.llm.ii with \-E. Use \-o to select an output file.
+.SH ENVIRONMENT
+.TP
+.B LLMCPP_BACKEND
+Select auto (default), anthropic, openai, codex, or claude-code.
+Automatic selection tries Anthropic, OpenAI, Codex, then Claude Code.
+.TP
+.B LLMCPP_AGENT
+External agent command, overridden by \-fllm\-agent.
+.TP
+.B LLMCPP_MODEL
+Default model, overridden by \-fllm\-model and per-function model options.
+.TP
+.BR ANTHROPIC_API_KEY ", " OPENAI_API_KEY
+Credentials for the corresponding API backend.
+.TP
+.BR ANTHROPIC_BASE_URL ", " OPENAI_BASE_URL
+Override the corresponding API endpoint.
+.TP
+.B LLMCPP_EFFORT
+Reasoning effort for Codex and Claude Code. Default: medium.
+.TP
+.BR LLMCPP_CODEX ", " LLMCPP_CLAUDE
+CLI executable names or paths. Defaults: codex and claude.
+.TP
+.B LLMCPP_VERBOSE
+Enable Python adapter diagnostics when nonempty.
+.SH MODIFIERS
+.TP
+.B __llm__
+Generate using driver defaults. __llm__() has the same effect.
+.TP
+.B model("id")
+Override the model for one function.
+.TP
+.B no_cache
+Disable cache reads and writes for one function.
+.TP
+.B cache("salt")
+Enable caching and add a nonempty salt to the cache key, not a filename.
+Cannot be combined with no_cache.
+.TP
+.B max_attempts(count)
+Override the rejected-submission limit with a positive integer literal.
+.TP
+.B timeout(seconds)
+Override the generation deadline with a positive integer literal.
+.PP
+Separate options with commas inside __llm__(...). Per-function options
+override driver defaults but cannot enable generation in offline mode.
+.SH MACROS
+.B __LLMCPP__
+is defined as 1 during compilation and preprocessing.
+Use #ifdef __LLMCPP__ to distinguish this compiler from other compilers.
+.SH EXAMPLES
+.nf
+LLMCPP_BACKEND=codex llmc++ main.cpp \-o main
+llmc++ \-fllm\-offline main.cpp \-o main
+llmc++ \-\-llm main.cpp
+llmc++ \-fllm\-dump\-context main.cpp
+.fi
+.SH EXIT STATUS
+Zero indicates success. A nonzero status indicates a configuration,
+generation, compilation, or linking failure.
+.SH SEE ALSO
+.BR llmcpp-agent (1),
+.BR clang (1)

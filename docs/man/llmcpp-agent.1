@@ -1,0 +1,83 @@
+.TH LLMCPP-AGENT 1 "" "llmcpp" "User Commands"
+.SH NAME
+llmcpp-agent \- provide an external LLM backend for llmc++
+.SH SYNOPSIS
+.B llmcpp-agent
+.br
+.B llmcpp-agent \-\-replay
+.I transcript
+.br
+.B llmcpp-agent \-\-mcp\-bridge
+.I socket
+.SH DESCRIPTION
+llmcpp-agent is the bundled Python adapter for llmc++. The compiler normally
+launches it; it is not an interactive prompt interface.
+.PP
+It exchanges newline-delimited JSON-RPC over standard input and output.
+It initializes an MCP client connection, discovers compiler tools, and
+handles protocol-version-1 llm/generate requests. It uses compiler tools to
+inspect context, validate candidate bodies, and submit accepted code.
+Diagnostics go to standard error; standard output is reserved for protocol
+messages.
+.PP
+The adapter supports the Anthropic API, Codex CLI, and Claude Code CLI.
+OpenAI API support is provided by the compiler's native client, not this adapter.
+Codex and Claude Code require installed, authenticated CLI tools.
+.SH OPTIONS
+.TP
+.BI \-\-replay " transcript"
+Replay recorded tool calls from an llmc++ JSONL transcript without contacting
+a model. The compiler still validates submitted bodies.
+.TP
+.BI \-\-mcp\-bridge " socket"
+Run the internal MCP bridge used by CLI backends. Connect to the specified
+Unix-domain socket. This mode is normally started by the adapter itself.
+.SH CONFIGURATION
+Supply a JSON object through llmc++ \-fllm\-agent\-config=file.
+Supported fields are backend, model, effort, executable, base_url, and api_key.
+Only fields relevant to the selected backend apply.
+.PP
+Configuration values override environment defaults. A model requested by the
+compiler, including a per-function model override, takes precedence over
+the configuration model. Prefer environment variables for credentials.
+.SH ENVIRONMENT
+.TP
+.B LLMCPP_BACKEND
+Select auto (default), anthropic, codex, or claude-code.
+Automatic selection uses Anthropic when ANTHROPIC_API_KEY is set,
+otherwise Codex when available, otherwise Claude Code.
+.TP
+.B ANTHROPIC_API_KEY
+API credential for the Anthropic backend.
+.TP
+.B ANTHROPIC_BASE_URL
+Override the Anthropic API endpoint.
+.TP
+.B LLMCPP_MODEL
+Model identifier or alias. The Anthropic default is claude-opus-5;
+CLI backends otherwise use their own defaults.
+.TP
+.B LLMCPP_EFFORT
+Reasoning effort for Codex and Claude Code. Default: medium.
+.TP
+.B LLMCPP_CODEX
+Codex executable name or path. Default: codex.
+.TP
+.B LLMCPP_CLAUDE
+Claude Code executable name or path. Default: claude.
+.TP
+.B LLMCPP_VERBOSE
+Enable diagnostics when nonempty. Also set by llmc++ \-fllm\-verbose.
+.SH EXAMPLES
+.nf
+LLMCPP_BACKEND=codex llmc++ main.cpp \-o main
+llmc++ \-fllm\-agent=llmcpp-agent main.cpp
+llmc++ \-fllm\-agent='llmcpp-agent \-\-replay trace.jsonl' main.cpp
+.fi
+.SH EXIT STATUS
+Normal protocol completion returns zero. Generation errors are reported in
+JSON-RPC results and need not terminate the process. Unexpected process
+failures may return a nonzero status.
+.SH SEE ALSO
+.BR llmc++ (1),
+.BR python3 (1)

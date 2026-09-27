@@ -4,7 +4,7 @@ An `__llm__` body starts as a request written in plain language and ends as an
 ordinary C++ body. Generation happens while you compile, not while the finished
 program runs.
 
-```mermaid
+```{mermaid}
 flowchart LR
     Source[Source with an __llm__ body] --> Driver[llmc++ driver]
     Driver --> Parse[Clang parsing and validation]

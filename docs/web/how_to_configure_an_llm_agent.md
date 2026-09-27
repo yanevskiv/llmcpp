@@ -1,8 +1,9 @@
 # How to configure an LLM agent
 
-`llmc++` can use the OpenAI or Anthropic API, Codex, or Claude Code to write an
-annotated function body. If you already use one of the CLI tools, the quickest
-setup is to reuse that login.
+You have a function ready to generate; now choose who will generate it.
+`llmc++` can use the OpenAI or Anthropic API, Codex, or Claude Code. If you
+already use one of the CLI tools, start by reusing that login. If you need an
+API endpoint or your own agent process, the sections below explain those routes.
 
 | Backend | Select it with | What you need |
 | --- | --- | --- |
