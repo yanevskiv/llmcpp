@@ -24,18 +24,20 @@ namespace llmcpp
     {
         m_options.m_executable = std::move(executable);
         m_options.m_system_prompt = agent_system_prompt().str();
-        if (const char *backend = std::getenv("LLMCPP_BACKEND")) {
-            m_options.m_backend = backend;
-        }
-        if (const char *model = std::getenv("LLMCPP_MODEL")) {
-            m_options.m_model = model;
-        }
     }
 
     // Parse arguments following the executable name.
     bool DriverOptions::parse(llvm::ArrayRef<const char *> args, std::string &error)
     {
-        bool valid = true;
+        for (llvm::StringRef arg : args) {
+            if (arg == "--help" || arg == "-help" || arg == "--help-hidden") {
+                m_wants_help = true;
+            }
+        }
+        bool valid = m_wants_help || parse_environment(error);
+        if (!valid) {
+            return false;
+        }
         std::vector<bool> handled;
         for (const char *arg : args) {
             handled.push_back(parse_llm_option(arg, error));
@@ -244,14 +246,106 @@ namespace llmcpp
                "  -fllm-dump-context              Print compiler context without generation\n"
                "  -fllm-verbose                   Print generation progress and agent tool logs\n"
                "  -fllm-transcript=<file>         Append a redacted JSONL generation transcript\n"
+               "\nOptions use matching LLMCPP_UPPERCASE_NAMES as environment defaults.\n"
+               "Boolean switches accept =true or =false (also 1/0, yes/no, on/off).\n"
+               "CONTEXT and APPEND_PROMPT accept a path or JSON array of paths.\n"
                "\nGeneration requires -fllm-backend or LLMCPP_BACKEND, unless a custom agent\n"
                "is supplied. Successful compilation is silent by default.\n";
+    }
+
+    // Load environment defaults through the command-line validators.
+    bool DriverOptions::parse_environment(std::string &error)
+    {
+        for (llvm::StringRef suffix : {"BACKEND",           "AGENT",           "MODEL",
+                                       "SYSTEM_PROMPT",     "APPEND_PROMPT",   "AGENT_CONFIG",
+                                       "CONTEXT",           "OFFLINE",         "REGENERATE",
+                                       "NO_CACHE",          "CACHE_READ_ONLY", "EXPLAIN_CACHE",
+                                       "CACHE_DIR",         "CACHE_SALT",      "CACHE_LIFETIME",
+                                       "HASH_ABBREV",       "MAX_ATTEMPTS",    "MAX_TOOL_CALLS",
+                                       "MAX_OUTPUT_TOKENS", "TIMEOUT",         "DUMP_CODE",
+                                       "DUMP_CONTEXT",      "VERBOSE",         "TRANSCRIPT"}) {
+            std::string name = "LLMCPP_" + suffix.str();
+            const char *raw = std::getenv(name.c_str());
+            if (!raw || !*raw) {
+                continue;
+            }
+            std::string option = "-fllm-" + suffix.lower();
+            for (char &character : option) {
+                if (character == '_') {
+                    character = '-';
+                }
+            }
+            llvm::StringRef value(raw);
+            std::vector<std::string> values{value.str()};
+            if ((suffix == "CONTEXT" || suffix == "APPEND_PROMPT") &&
+                value.ltrim().starts_with("[")) {
+                auto parsed = llvm::json::parse(value);
+                if (!parsed) {
+                    error = name + ": " + llvm::toString(parsed.takeError());
+                    return false;
+                }
+                auto *array = parsed->getAsArray();
+                if (!array) {
+                    error = name + ": expected a JSON array of file paths";
+                    return false;
+                }
+                values.clear();
+                for (const llvm::json::Value &entry : *array) {
+                    auto path = entry.getAsString();
+                    if (!path || path->empty()) {
+                        error = name + ": expected nonempty file paths";
+                        return false;
+                    }
+                    values.push_back(path->str());
+                }
+            }
+            for (const std::string &entry : values) {
+                parse_llm_option(option + "=" + entry, error);
+                if (!error.empty()) {
+                    error = name + ": " + error;
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    // Parse boolean switches consistently for environment and command-line values.
+    bool DriverOptions::parse_boolean_option(llvm::StringRef arg, std::string &error)
+    {
+        auto [name, value] = arg.split('=');
+        for (const auto &[option, destination] :
+             {std::pair{"-fllm-offline", &m_options.m_offline},
+              std::pair{"-fllm-regenerate", &m_options.m_regenerate},
+              std::pair{"-fllm-no-cache", &m_options.m_use_cache},
+              std::pair{"-fllm-cache-read-only", &m_options.m_cache_read_only},
+              std::pair{"-fllm-explain-cache", &m_options.m_explain_cache},
+              std::pair{"-fllm-dump-code", &m_options.m_dump_code},
+              std::pair{"-fllm-dump-context", &m_options.m_dump_context},
+              std::pair{"-fllm-verbose", &m_options.m_verbose}}) {
+            if (name != option) {
+                continue;
+            }
+            std::string normalized = value.lower();
+            bool enabled = !arg.contains('=') || normalized == "1" || normalized == "true" ||
+                           normalized == "yes" || normalized == "on";
+            if (!enabled && normalized != "0" && normalized != "false" && normalized != "no" &&
+                normalized != "off") {
+                error = "invalid boolean value for " + name.str();
+            } else {
+                *destination = name == "-fllm-no-cache" ? !enabled : enabled;
+            }
+            return true;
+        }
+        return false;
     }
 
     // Parse one llmc++-specific argument.
     bool DriverOptions::parse_llm_option(llvm::StringRef arg, std::string &error)
     {
-        if (arg == "--llm") {
+        if (parse_boolean_option(arg, error)) {
+            return true;
+        } else if (arg == "--llm") {
             m_options.m_emit_source = true;
         } else if (arg == "-fllm") {
         } else if (arg.consume_front("-fllm-backend=")) {
@@ -276,10 +370,6 @@ namespace llmcpp
             if (arg.empty()) {
                 error = "-fllm-context requires a file";
             }
-        } else if (arg == "-fllm-cache-read-only") {
-            m_options.m_cache_read_only = true;
-        } else if (arg == "-fllm-explain-cache") {
-            m_options.m_explain_cache = true;
         } else if (arg.consume_front("-fllm-max-output-tokens=")) {
             if (!parse_unsigned(arg, m_options.m_max_output_tokens)) {
                 error = "invalid value for -fllm-max-output-tokens";
@@ -299,12 +389,6 @@ namespace llmcpp
             if (arg.empty()) {
                 error = "-fllm-transcript requires a file";
             }
-        } else if (arg == "-fllm-offline") {
-            m_options.m_offline = true;
-        } else if (arg == "-fllm-regenerate") {
-            m_options.m_regenerate = true;
-        } else if (arg == "-fllm-no-cache") {
-            m_options.m_use_cache = false;
         } else if (arg.consume_front("-fllm-cache-dir=")) {
             m_options.m_cache_dir = arg.str();
         } else if (arg.consume_front("-fllm-cache-salt=")) {
@@ -320,12 +404,6 @@ namespace llmcpp
             if (!parse_unsigned(arg, m_options.m_hash_abbrev) || m_options.m_hash_abbrev > 64) {
                 error = "invalid value for -fllm-hash-abbrev (expected 1 through 64)";
             }
-        } else if (arg == "-fllm-dump-code") {
-            m_options.m_dump_code = true;
-        } else if (arg == "-fllm-dump-context") {
-            m_options.m_dump_context = true;
-        } else if (arg == "-fllm-verbose") {
-            m_options.m_verbose = true;
         } else if (arg.consume_front("-fllm-max-attempts=")) {
             if (!parse_unsigned(arg, m_options.m_max_attempts)) {
                 error = "invalid value for -fllm-max-attempts";

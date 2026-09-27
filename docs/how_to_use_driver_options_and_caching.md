@@ -5,6 +5,27 @@ read its implementation, reuse it in CI, or stop an expensive generation run?
 This guide follows that workflow. `llmc++` accepts ordinary `clang++` arguments;
 its own options control generation, budgets, and output.
 
+## Set environment defaults
+
+Value-taking and boolean `-fllm-*` options have matching `LLMCPP_*` environment
+variables: for example, `LLMCPP_CACHE_DIR` and `LLMCPP_MAX_ATTEMPTS`.
+Command-line options override these defaults; per-function modifiers override
+both. Empty environment values are ignored; invalid nonempty values are errors.
+
+Booleans accept `1/0`, `true/false`, `yes/no`, or `on/off`. Use an explicit
+command-line value, such as `-fllm-offline=false`, to disable an inherited setting.
+Regeneration still overrides offline mode.
+
+`LLMCPP_CONTEXT` and `LLMCPP_APPEND_PROMPT` accept a single path or a JSON array
+of paths. Command-line occurrences append after those environment files.
+
+```sh
+export LLMCPP_CACHE_DIR=.llmcache
+export LLMCPP_CONTEXT='["reference.md", "types.md"]'
+export LLMCPP_OFFLINE=true
+llmc++ main.cpp -fllm-offline=false -o main
+```
+
 ## Choose what the driver produces
 
 | Option | Effect |

@@ -85,9 +85,7 @@ namespace llmcpp
             dup2(sockets[1], STDIN_FILENO);
             dup2(sockets[1], STDOUT_FILENO);
             setenv("LLMCPP_BACKEND", m_opts.m_backend.c_str(), 1);
-            if (m_opts.m_verbose) {
-                setenv("LLMCPP_VERBOSE", "1", 1);
-            }
+            setenv("LLMCPP_VERBOSE", m_opts.m_verbose ? "1" : "0", 1);
             execl("/bin/sh", "sh", "-c", cmd.c_str(), (char *)nullptr);
             _exit(127);
         }

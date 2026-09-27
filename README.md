@@ -115,20 +115,50 @@ __llm__ double sqrt(double x) {
 API credentials and endpoint variables are documented in
 [How to configure an LLM agent](docs/how_to_configure_an_llm_agent.md).
 
+Environment variables supply defaults; command-line options override them, followed
+by per-function modifiers. Empty values are ignored. Boolean values accept
+`1/0`, `true/false`, `yes/no`, or `on/off`. `LLMCPP_CONTEXT` and
+`LLMCPP_APPEND_PROMPT` accept one file path or a JSON array of paths, such as
+`["reference.md", "types.md"]`; command-line occurrences append to these lists.
+Paths are relative to the working directory. Regeneration still overrides offline mode.
+
 | Variable | Effect |
 | --- | --- |
 | `LLMCPP_BACKEND` | Select `anthropic`, `openai`, `codex`, or `claude`. Required for generation unless a custom agent is supplied. |
 | `LLMCPP_AGENT` | Run a custom external agent command; overridden by `-fllm-agent`. |
 | `LLMCPP_MODEL` | Set the default model; overridden by `-fllm-model` and per-function `model(...)`. |
+| `LLMCPP_SYSTEM_PROMPT` | Replace the built-in system prompt with a UTF-8 file. |
+| `LLMCPP_APPEND_PROMPT` | Append one or several UTF-8 files to the system prompt. |
+| `LLMCPP_AGENT_CONFIG` | Read a JSON agent configuration object from a file. |
+| `LLMCPP_CONTEXT` | Attach one or several UTF-8 reference files. |
+| `LLMCPP_OFFLINE` | Use cached bodies only, unless regeneration is enabled. |
+| `LLMCPP_REGENERATE` | Ignore cache hits and generate fresh bodies. |
+| `LLMCPP_NO_CACHE` | Disable cache reads and writes. |
+| `LLMCPP_CACHE_READ_ONLY` | Read cached bodies without writing generated results. |
+| `LLMCPP_EXPLAIN_CACHE` | Explain cache decisions on stderr. |
+| `LLMCPP_CACHE_DIR` | Choose the cache directory. |
+| `LLMCPP_CACHE_SALT` | Set the default salt for computed cache keys. |
+| `LLMCPP_CACHE_LIFETIME` | Set the maximum cache age in seconds; `0` means no expiry. |
+| `LLMCPP_HASH_ABBREV` | Set the minimum hash length, from `1` to `64`. |
+| `LLMCPP_MAX_ATTEMPTS` | Set the positive rejected-submission limit per body. |
+| `LLMCPP_MAX_TOOL_CALLS` | Set the positive compiler-tool-call limit per body. |
+| `LLMCPP_MAX_OUTPUT_TOKENS` | Set the positive output-token limit per model response. |
+| `LLMCPP_TIMEOUT` | Set the positive generation deadline in seconds per body. |
+| `LLMCPP_DUMP_CODE` | Print accepted generated bodies. |
+| `LLMCPP_DUMP_CONTEXT` | Print task and compiler context without generation. |
+| `LLMCPP_VERBOSE` | Print generation progress and agent diagnostics. |
+| `LLMCPP_TRANSCRIPT` | Append generation events to a JSONL file. |
 | `LLMCPP_EFFORT` | Set reasoning effort for the Codex and Claude Code adapters; default `medium`. |
 | `LLMCPP_CODEX` | Choose the Codex executable; default `codex`. |
 | `LLMCPP_CLAUDE` | Choose the Claude Code executable; default `claude`. |
-| `LLMCPP_VERBOSE` | Enable Python adapter diagnostics when nonempty; also set by `-fllm-verbose`. |
 | `LLMCPP_DEPS_DIR` | Choose where `do_fetch_deps.sh` downloads dependencies; CMake still expects them under the project's `deps/`. |
 | `LLMCPP_MOCK_SCRIPT` | Select the JSON script for `agents/llmcpp-mock-agent`; used for testing. |
 | `LLMCPP_MOCK_LOG` | Choose where the mock agent appends its tool-call log. |
 
 ### Command line
+
+Boolean switches also accept an explicit value, such as `-fllm-offline=false`
+or `-fllm-no-cache=0`, to override environment defaults.
 
 | Option | Effect |
 | --- | --- |

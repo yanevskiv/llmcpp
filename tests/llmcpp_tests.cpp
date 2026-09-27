@@ -39,7 +39,120 @@ TEST_CASE("driver help includes generation options", "[options]")
                            "-fllm-context=", "-fllm-cache-read-only", "-fllm-explain-cache",
                            "-fllm-max-output-tokens=", "-fllm-dump-code", "-fllm-append-prompt="});
         CHECK(result.m_out.find("-fllm-force-regenerate") == std::string::npos);
+        result = work.llmcpp({help}, {{"LLMCPP_TIMEOUT", "not-a-number"}});
+        CHECK(result.m_status == 0);
     }
+}
+
+// Resolve environment defaults before command-line and function overrides.
+TEST_CASE("environment generation defaults and overrides", "[options]")
+{
+    llmcpp::test::TestWorkspace work;
+    std::ofstream(work.path() / "env.cpp") << "__llm__ int f() { Return one. }\n";
+    std::ofstream(work.path() / "first.md") << "First reference.";
+    std::ofstream(work.path() / "second.md") << "Second reference.";
+    std::ofstream(work.path() / "system.md") << "Environment instructions.";
+    std::ofstream(work.path() / "append.md") << "Additional instructions.";
+    std::ofstream(work.path() / "extra.md") << "More instructions.";
+    std::vector<std::pair<std::string, std::string>> environment = {
+        {"LLMCPP_BACKEND", "codex"},           {"LLMCPP_MODEL", "environment-model"},
+        {"LLMCPP_SYSTEM_PROMPT", "system.md"}, {"LLMCPP_APPEND_PROMPT", "append.md"},
+        {"LLMCPP_CONTEXT", "[\"first.md\"]"},  {"LLMCPP_DUMP_CONTEXT", "true"},
+        {"LLMCPP_MAX_ATTEMPTS", "7"},          {"LLMCPP_MAX_TOOL_CALLS", "8"},
+        {"LLMCPP_MAX_OUTPUT_TOKENS", "256"},   {"LLMCPP_TIMEOUT", "12"}};
+    auto result =
+        work.llmcpp({"env.cpp", "-fllm-context=second.md", "-fllm-model=cli-model"}, environment);
+    INFO(result.m_err);
+    REQUIRE(result.m_status == 0);
+    llmcpp::test::check_contains(result.m_out,
+                                 {"First reference.", "Second reference.", "cli-model", "256"});
+    CHECK(result.m_out.find("environment-model") == std::string::npos);
+    environment[3].second = "[\"append.md\", \"extra.md\"]";
+    environment[4].second = "first.md";
+    result = work.llmcpp({"env.cpp"}, environment);
+    INFO(result.m_err);
+    REQUIRE(result.m_status == 0);
+    llmcpp::test::check_contains(result.m_out, {"First reference."});
+    CHECK(result.m_out.find("Second reference.") == std::string::npos);
+    std::ofstream(work.path() / "env.cpp")
+        << "__llm__(model(\"function-model\"), max_output_tokens(512)) int f() {}\n";
+    result = work.llmcpp({"env.cpp", "-fllm-model=cli-model"}, environment);
+    REQUIRE(result.m_status == 0);
+    llmcpp::test::check_contains(result.m_out, {"function-model", "512"});
+    std::ofstream(work.path() / "plain.cpp") << "int main() {}\n";
+    result = work.llmcpp({"plain.cpp", "-fsyntax-only", "-fllm-dump-context=false",
+                          "-fllm-verbose=off", "-fllm-no-cache=0"},
+                         {{"LLMCPP_DUMP_CONTEXT", "yes"},
+                          {"LLMCPP_VERBOSE", "on"},
+                          {"LLMCPP_NO_CACHE", "true"},
+                          {"LLMCPP_BACKEND", ""}});
+    REQUIRE(result.m_status == 0);
+    CHECK(result.m_out.empty());
+    CHECK(result.m_err.empty());
+}
+
+// Reject malformed environment defaults using the command-line validators.
+TEST_CASE("environment generation defaults validate values", "[options]")
+{
+    llmcpp::test::TestWorkspace work;
+    for (const auto &[name, value] :
+         {std::pair{"LLMCPP_OFFLINE", "maybe"}, std::pair{"LLMCPP_VERBOSE", "2"},
+          std::pair{"LLMCPP_CONTEXT", "[1]"}, std::pair{"LLMCPP_APPEND_PROMPT", "["},
+          std::pair{"LLMCPP_MAX_ATTEMPTS", "0"}, std::pair{"LLMCPP_MAX_TOOL_CALLS", "-1"},
+          std::pair{"LLMCPP_MAX_OUTPUT_TOKENS", "0"}, std::pair{"LLMCPP_TIMEOUT", "no"},
+          std::pair{"LLMCPP_HASH_ABBREV", "65"}, std::pair{"LLMCPP_CACHE_LIFETIME", "-1"}}) {
+        auto result = work.llmcpp({"-fsyntax-only", "test_failure.cpp"}, {{name, value}});
+        INFO(name);
+        CHECK(result.m_status != 0);
+        llmcpp::test::check_contains(result.m_err, {name});
+    }
+    auto result = work.llmcpp({"-fllm-offline=maybe", "test_failure.cpp"});
+    CHECK(result.m_status != 0);
+    llmcpp::test::check_contains(result.m_err, {"invalid boolean"});
+    for (const char *name : {"LLMCPP_SYSTEM_PROMPT", "LLMCPP_APPEND_PROMPT", "LLMCPP_CONTEXT",
+                             "LLMCPP_AGENT_CONFIG"}) {
+        result = work.llmcpp({"-fsyntax-only", "test_failure.cpp"}, {{name, "missing.file"}});
+        CHECK(result.m_status != 0);
+        llmcpp::test::check_contains(result.m_err, {"missing.file"});
+    }
+}
+
+// Exercise environment cache policy and custom-agent defaults through generation.
+TEST_CASE("environment cache policies control generation", "[options][cache]")
+{
+    llmcpp::test::TestWorkspace work;
+    std::ofstream(work.path() / "env.cpp") << "__llm__ int f(int score) {}\n";
+    std::vector<std::pair<std::string, std::string>> environment = {
+        {"LLMCPP_AGENT", MOCK_AGENT_PATH},
+        {"LLMCPP_BACKEND", ""},
+        {"LLMCPP_MOCK_SCRIPT", (work.path() / "json/test_options.json").string()},
+        {"LLMCPP_CACHE_DIR", "env-cache"},
+        {"LLMCPP_CACHE_SALT", "env-salt"},
+        {"LLMCPP_CACHE_LIFETIME", "0"},
+        {"LLMCPP_HASH_ABBREV", "10"},
+        {"LLMCPP_CACHE_READ_ONLY", "true"},
+        {"LLMCPP_EXPLAIN_CACHE", "yes"},
+        {"LLMCPP_DUMP_CODE", "on"},
+        {"LLMCPP_VERBOSE", "0"},
+        {"LLMCPP_TRANSCRIPT", "events.jsonl"}};
+    auto result = work.llmcpp({"--llm", "env.cpp"}, environment);
+    INFO(result.m_err);
+    REQUIRE(result.m_status == 0);
+    llmcpp::test::check_contains(result.m_err, {"return score;"});
+    llmcpp::test::check_contains(result.m_err, {"cache is read-only"});
+    CHECK_FALSE(fs::exists(work.path() / "env-cache"));
+    CHECK(fs::exists(work.path() / "events.jsonl"));
+    result = work.llmcpp({"--llm", "env.cpp", "-fllm-cache-read-only=false"}, environment);
+    REQUIRE(result.m_status == 0);
+    REQUIRE(fs::exists(work.path() / "env-cache"));
+    environment.emplace_back("LLMCPP_OFFLINE", "true");
+    environment.emplace_back("LLMCPP_REGENERATE", "true");
+    result = work.llmcpp({"--llm", "env.cpp"}, environment);
+    REQUIRE(result.m_status == 0);
+    llmcpp::test::check_contains(result.m_err, {"regeneration requested"});
+    result = work.llmcpp({"--llm", "env.cpp", "-fllm-regenerate=false"}, environment);
+    REQUIRE(result.m_status == 0);
+    llmcpp::test::check_contains(result.m_err, {"hit"});
 }
 
 // Verify diagnostics for unsupported or malformed annotations.
