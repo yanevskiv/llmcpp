@@ -63,6 +63,12 @@ namespace llmcpp
 
     private:
         /**
+         * Resolve prompt files and agent configuration.
+         * @param error Destination for file and JSON diagnostics.
+         * @return Whether configuration was valid.
+         */
+        bool resolve_configuration(std::string &error);
+        /**
          * Parse one llmc++-specific argument.
          *
          * @param arg Argument to inspect.

@@ -6,6 +6,7 @@
 #define LLMCPP_DATA_GENERATION_OPTIONS_H
 
 #include <string>
+#include <vector>
 /** Namespace for llmcpp declarations. */
 namespace llmcpp
 {
@@ -19,6 +20,20 @@ namespace llmcpp
             bool m_emit_source = false;
             /** Command used to launch the LLM agent. */
             std::string m_agent_command;
+            /** Resolved system instructions sent to every backend. */
+            std::string m_system_prompt;
+            /** File replacing the built-in system instructions. */
+            std::string m_system_prompt_file;
+            /** Files appended to the resolved system instructions, in order. */
+            std::vector<std::string> m_append_system_prompt_files;
+            /** Requested model, overriding the agent's default. */
+            std::string m_model;
+            /** Agent-specific JSON configuration file. */
+            std::string m_agent_config_file;
+            /** Resolved agent-specific JSON object. */
+            std::string m_agent_config = "{}";
+            /** Optional destination for redacted generation transcripts. */
+            std::string m_transcript_file;
             /** Whether generation must use only cached results. */
             bool m_offline = false;
             /** Whether cached results should be ignored. */

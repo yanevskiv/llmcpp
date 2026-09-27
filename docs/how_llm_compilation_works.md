@@ -53,8 +53,9 @@ so backend selection does not change what the compiler can expose.
 - Comments inside the body are ignored and do not become part of the prompt.
 - A template gets one generated body, not a separate body for every
   instantiation.
-- The cache key includes the target name, signature, and prompt, but it is not a
-  complete fingerprint of every declaration the generated body may use.
+- Cache identity includes instructions, effective target options, compiler
+  settings, and visible source/header contents. Edits can conservatively
+  invalidate bodies even when their implementation would still be usable.
 - Successful compilation proves that the generated body is valid C++. It does
   not prove that the body matches your intent, so generated code still needs
   review and tests.

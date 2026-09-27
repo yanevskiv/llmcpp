@@ -4,6 +4,7 @@
 
 // Project headers for pass state, tools, transport, and text handling.
 #include "llmcpp/generation_pass.h"
+#include "llmcpp/agent_prompt.h"
 #include "llmcpp/agent_session.h"
 #include "llmcpp/agent_tool_server.h"
 #include "llmcpp/compiler_ast_text.h"
@@ -24,6 +25,7 @@
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/SourceManager.h"
+#include "clang/Basic/Version.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Lex/Lexer.h"
 #include "clang/Lex/PPCallbacks.h"
@@ -64,8 +66,7 @@ namespace llmcpp
 
         // Constants for lexical markers used while discovering prompt bodies.
         const char Keyword[] = "__llm__";
-        const unsigned KeywordLength = sizeof(Keyword) - 1;
-        const char CacheVersion[] = "llmcpp-prototype-2";
+        const char CacheVersion[] = "llmcpp-cache-3";
 
         // Recognize the first character of an identifier.
         static bool is_identifier_start(char c)
@@ -181,6 +182,15 @@ namespace llmcpp
                     tokens.push_back({begin, i, directive});
                     continue;
                 }
+                if (std::isdigit(static_cast<unsigned char>(c))) {
+                    unsigned begin = i++;
+                    while (i < source.size() &&
+                           std::isdigit(static_cast<unsigned char>(source[i]))) {
+                        ++i;
+                    }
+                    tokens.push_back({begin, i, directive});
+                    continue;
+                }
                 tokens.push_back({i, i + 1, directive});
                 ++i;
             }
@@ -191,6 +201,104 @@ namespace llmcpp
         static bool token_is(StringRef source, const data::DataPromptToken &t, StringRef text)
         {
             return source.slice(t.m_begin, t.m_end) == text;
+        }
+
+        // Locate the closing parenthesis of a function-like modifier.
+        static size_t modifier_end(StringRef source, llvm::ArrayRef<data::DataPromptToken> tokens,
+                                   size_t keyword)
+        {
+            if (keyword + 1 >= tokens.size() || !token_is(source, tokens[keyword + 1], "(")) {
+                return keyword;
+            }
+            unsigned depth = 0;
+            for (size_t i = keyword + 1; i < tokens.size(); ++i) {
+                if (token_is(source, tokens[i], "(")) {
+                    ++depth;
+                } else if (token_is(source, tokens[i], ")") && --depth == 0) {
+                    return i;
+                }
+            }
+            return keyword;
+        }
+
+        // Resolve a small declarative option list without evaluating C++ expressions.
+        static bool parse_target_options(StringRef source, data::DataGenerationTarget &target,
+                                         std::string &error)
+        {
+            auto tokens = source_tokens(source.drop_front(target.m_keyword_offset));
+            StringRef text = source.drop_front(target.m_keyword_offset);
+            size_t end = modifier_end(text, tokens, 0);
+            if (end == 0) {
+                target.m_keyword_end = target.m_keyword_offset + tokens[0].m_end;
+                if (tokens.size() > 1 && token_is(text, tokens[1], "(")) {
+                    error = "unterminated __llm__ option list";
+                    return false;
+                }
+                return true;
+            }
+            target.m_keyword_end = target.m_keyword_offset + tokens[end].m_end;
+            std::set<std::string> seen;
+            for (size_t i = 2; i < end;) {
+                std::string name = text.slice(tokens[i].m_begin, tokens[i].m_end).str();
+                if (!seen.insert(name).second) {
+                    error = "duplicate __llm__ option '" + name + "'";
+                    return false;
+                }
+                ++i;
+                if (name == "no_cache") {
+                    target.m_options.m_use_cache = false;
+                } else {
+                    if (i + 2 >= end || !token_is(text, tokens[i], "(") ||
+                        !token_is(text, tokens[i + 2], ")")) {
+                        error = "expected one literal argument for __llm__ option '" + name + "'";
+                        return false;
+                    }
+                    StringRef literal = text.slice(tokens[i + 1].m_begin, tokens[i + 1].m_end);
+                    if (name == "model" || name == "cache") {
+                        auto value = json::parse(literal);
+                        if (!value) {
+                            llvm::consumeError(value.takeError());
+                            error = "expected a quoted string for __llm__ option '" + name + "'";
+                            return false;
+                        }
+                        auto string = value->getAsString();
+                        if (!string || string->empty()) {
+                            error = "expected a nonempty string for __llm__ option '" + name + "'";
+                            return false;
+                        }
+                        if (name == "model") {
+                            target.m_options.m_model = string->str();
+                        } else {
+                            target.m_cache_salt = string->str();
+                            target.m_options.m_use_cache = true;
+                        }
+                    } else if (name == "max_attempts" || name == "timeout") {
+                        unsigned value = 0;
+                        if (literal.getAsInteger(10, value) || !value) {
+                            error = "expected a positive integer for __llm__ option '" + name + "'";
+                            return false;
+                        }
+                        if (name == "max_attempts") {
+                            target.m_options.m_max_attempts = value;
+                        } else {
+                            target.m_options.m_timeout_seconds = value;
+                        }
+                    } else {
+                        error = "unknown __llm__ option '" + name + "'";
+                        return false;
+                    }
+                    i += 3;
+                }
+                if (i < end && (!token_is(text, tokens[i++], ",") || i == end)) {
+                    error = "expected another __llm__ option after a comma";
+                    return false;
+                }
+            }
+            if (seen.count("cache") && seen.count("no_cache")) {
+                error = "cache and no_cache cannot be combined";
+                return false;
+            }
+            return true;
         }
 
         // Find the closing brace paired with a prompt body's opening brace.
@@ -220,11 +328,17 @@ namespace llmcpp
                     continue;
                 }
 
+                size_t modifierEnd = modifier_end(source, tokens, i);
+                for (unsigned p = tokens[i].m_end; p < tokens[modifierEnd].m_end; ++p) {
+                    if (result[p] != '\n' && result[p] != '\r') {
+                        result[p] = ' ';
+                    }
+                }
                 unsigned parens = 0, squares = 0;
                 bool sawParameterList = false, inCtorInitializers = false;
                 size_t bodyOpen = tokens.size();
                 unsigned bodyCloseOffset = 0;
-                for (size_t j = i + 1; j < tokens.size(); ++j) {
+                for (size_t j = modifierEnd + 1; j < tokens.size(); ++j) {
                     StringRef text = source.slice(tokens[j].m_begin, tokens[j].m_end);
                     if (text == "(") {
                         ++parens;
@@ -316,7 +430,6 @@ namespace llmcpp
         , m_ci(ci)
         , m_opts(opts)
         , m_result(result)
-        , m_agent(opts)
         , m_cc1_args(std::move(cc1Args))
         , m_original_source(std::move(originalSource))
     {
@@ -456,10 +569,16 @@ namespace llmcpp
             }
 
             unsigned kwOffset = sm.getFileOffset(kw);
-            unsigned next = next_token_offset(sm, ctx.getLangOpts(), m_state.m_source,
-                                              kwOffset + KeywordLength);
             data::DataGenerationTarget t;
             t.m_keyword_offset = kwOffset;
+            t.m_options = m_opts;
+            std::string optionError;
+            if (!parse_target_options(m_state.m_source, t, optionError)) {
+                report(kw, DiagnosticsEngine::Error, "%0") << optionError;
+                continue;
+            }
+            unsigned next =
+                next_token_offset(sm, ctx.getLangOpts(), m_state.m_source, t.m_keyword_end);
             for (LambdaExpr *le : collector.m_lambdas) {
                 if (mainOffset(le->getBeginLoc()) == next) {
                     t.m_lambda = le;
@@ -616,9 +735,45 @@ namespace llmcpp
         return true;
     }
 
+    // Fingerprint source context without output paths or compilation actions.
+    std::string GenerationPass::context_digest() const
+    {
+        std::string context =
+            getClangFullVersion() + "\n" + make_parseable_source(m_state.m_source);
+        bool valueFollows = false;
+        for (const std::string &arg : m_cc1_args) {
+            StringRef option(arg);
+            if (valueFollows || option.starts_with("-std=") || option.starts_with("-D") ||
+                option.starts_with("-U") || option.starts_with("-I") || option.starts_with("-f") ||
+                option.starts_with("-m") || option.starts_with("-O") || option == "-pthread" ||
+                option == "-triple" || option == "-target-cpu" || option == "-target-feature" ||
+                option == "-isystem" || option == "-iquote" || option == "-include" ||
+                option == "-x") {
+                if (option != "-fsyntax-only") {
+                    context += "\nargument:" + arg;
+                }
+            }
+            valueFollows = option == "-D" || option == "-U" || option == "-I" ||
+                           option == "-triple" || option == "-target-cpu" ||
+                           option == "-target-feature" || option == "-isystem" ||
+                           option == "-iquote" || option == "-include" || option == "-x";
+        }
+        std::set<std::string> headers;
+        for (const auto &include : m_state.m_includes) {
+            if (!include.m_path.empty() && headers.insert(include.m_path).second) {
+                auto buffer = llvm::MemoryBuffer::getFile(include.m_path);
+                if (buffer) {
+                    context += "\nheader:" + include.m_path + "\n" + (*buffer)->getBuffer().str();
+                }
+            }
+        }
+        return sha256_hex(context);
+    }
+
     // Assign stable display names and cache keys to targets.
     void GenerationPass::name_targets(ASTContext &ctx)
     {
+        std::string contextDigest = context_digest();
         llvm::StringMap<unsigned> lambdaCounts;
         for (data::DataGenerationTarget &t : m_state.m_targets) {
             if (t.m_lambda) {
@@ -638,9 +793,14 @@ namespace llmcpp
                 t.m_name = t.m_function->getQualifiedNameAsString();
                 t.m_signature = function_signature(t.m_function, ctx);
             }
-            t.m_key = sha256_hex(std::string(CacheVersion) + "\n" + t.m_name + "\n" +
-                                 t.m_signature + "\n" + t.m_prompt_text)
-                          .substr(0, 24);
+            t.m_context_digest = contextDigest;
+            std::string policy =
+                formatv("{0}", json::Value(agent_generation_settings(t.m_options))).str();
+            t.m_key =
+                sha256_hex(std::string(CacheVersion) + "\n" + t.m_name + "\n" + t.m_signature +
+                           "\n" + t.m_prompt_text + "\n" + policy + "\n" + t.m_cache_salt + "\n" +
+                           sha256_hex(t.m_options.m_system_prompt) + "\n" +
+                           sha256_hex(t.m_options.m_agent_config) + "\n" + contextDigest);
         }
     }
 
@@ -654,7 +814,7 @@ namespace llmcpp
     // Generate and validate an implementation for one target.
     bool GenerationPass::generate(data::DataGenerationTarget &t)
     {
-        if (m_opts.m_use_cache && !m_opts.m_regenerate && read_cache(t)) {
+        if (t.m_options.m_use_cache && !m_opts.m_regenerate && read_cache(t)) {
             t.m_generated = true;
             if (m_opts.m_verbose) {
                 llvm::errs() << "llmc++: " << t.m_location << ": '" << t.m_name << "' from "
@@ -677,18 +837,30 @@ namespace llmcpp
         AgentToolServer tools(m_state, t);
         data::DataAgentOutcome out;
         std::string problem;
-        json::Object task{{"name", t.m_name},
-                          {"signature", t.m_signature},
-                          {"location", t.m_location},
-                          {"prompt", t.m_prompt_text},
-                          {"limits", json::Object{{"max_attempts", m_opts.m_max_attempts},
-                                                  {"max_tool_calls", m_opts.m_max_tool_calls},
-                                                  {"timeout_seconds", m_opts.m_timeout_seconds}}}};
-        bool talked = m_agent.generate(std::move(task), tools, out, problem);
+        json::Object task = tools.get_task();
+        task["protocol_version"] = 1;
+        task["capabilities"] = json::Array{"compiler_tools", "effective_settings"};
+        task["system_prompt"] = t.m_options.m_system_prompt;
+        task["context_digest"] = t.m_context_digest;
+        auto config = json::parse(t.m_options.m_agent_config);
+        task["agent_config"] = std::move(*config);
+        AgentSession agent(t.m_options);
+        agent_record(t.m_options, "generation", json::Object(task));
+        if (m_opts.m_verbose) {
+            llvm::errs() << "llmc++: system prompt " << sha256_hex(t.m_options.m_system_prompt)
+                         << ", agent " << agent_identity(t.m_options) << "\n";
+        }
+        bool talked = agent.generate(std::move(task), tools, out, problem);
+        agent_record(t.m_options, "outcome",
+                     json::Object{{"name", t.m_name},
+                                  {"status", out.m_status},
+                                  {"model", out.m_model},
+                                  {"message", out.m_message},
+                                  {"error", problem}});
         double seconds =
             std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
 
-        if (!tools.accepted()) {
+        if (!tools.accepted() || !talked || out.m_status == "error") {
             std::string why = !talked                  ? problem
                               : !out.m_message.empty() ? out.m_message
                                                        : "the agent finished without an "
@@ -704,11 +876,11 @@ namespace llmcpp
         }
 
         t.m_code = tools.accepted_body();
-        t.m_model = !out.m_model.empty()       ? out.m_model
-                    : !m_agent.model().empty() ? m_agent.model()
-                                               : "unknown";
+        t.m_model = !out.m_model.empty()     ? out.m_model
+                    : !agent.model().empty() ? agent.model()
+                                             : "unknown";
         t.m_generated = true;
-        if (m_opts.m_use_cache) {
+        if (t.m_options.m_use_cache) {
             write_cache(t);
         }
         if (!m_opts.m_quiet) {
@@ -736,7 +908,7 @@ namespace llmcpp
         StringRef src = m_state.m_source;
         std::vector<data::DataSourceEdit> edits;
         for (const data::DataGenerationTarget &t : m_state.m_targets) {
-            unsigned end = t.m_keyword_offset + KeywordLength;
+            unsigned end = t.m_keyword_end;
             while (end < src.size() && (src[end] == ' ' || src[end] == '\t')) {
                 ++end;
             }
@@ -797,6 +969,14 @@ namespace llmcpp
         if (sep == StringRef::npos) {
             return false;
         }
+        StringRef metadata = content.take_front(sep);
+        if (!metadata.contains("// version: " + std::string(CacheVersion) + "\n") ||
+            !metadata.contains("// key: " + t.m_key + "\n") ||
+            !metadata.contains("// context: " + t.m_context_digest + "\n") ||
+            !metadata.contains("// system_prompt: " + sha256_hex(t.m_options.m_system_prompt) +
+                               "\n")) {
+            return false;
+        }
         llvm::SmallVector<StringRef, 16> lines;
         content.substr(0, sep).split(lines, '\n');
         t.m_model = "unknown";
@@ -820,17 +1000,26 @@ namespace llmcpp
             return;
         }
         std::string path = cache_path(t);
-        std::string temp = path + ".tmp";
+        llvm::SmallString<256> temp;
+        int descriptor = -1;
+        if (std::error_code ec =
+                llvm::sys::fs::createUniqueFile(path + ".%%%%%%.tmp", descriptor, temp)) {
+            report(SourceLocation(), DiagnosticsEngine::Warning, "cannot create cache entry: %0")
+                << ec.message();
+            return;
+        }
         {
-            std::error_code ec;
-            llvm::raw_fd_ostream os(temp, ec, llvm::sys::fs::OF_Text);
-            if (ec) {
-                report(SourceLocation(), DiagnosticsEngine::Warning,
-                       "cannot write cache entry '%0': %1")
-                    << temp << ec.message();
-                return;
-            }
+            llvm::raw_fd_ostream os(descriptor, true);
             os << "// llmcpp cache entry\n"
+               << "// version: " << CacheVersion << "\n"
+               << "// key: " << t.m_key << "\n"
+               << "// context: " << t.m_context_digest << "\n"
+               << "// system_prompt: " << sha256_hex(t.m_options.m_system_prompt) << "\n"
+               << "// policy: "
+               << formatv("{0}", json::Value(agent_generation_settings(t.m_options))) << "\n"
+               << "// cache_salt: " << formatv("{0}", json::Value(t.m_cache_salt)) << "\n"
+               << "// agent_config: " << sha256_hex(t.m_options.m_agent_config) << "\n"
+               << "// agent: " << agent_identity(t.m_options) << "\n"
                << "// function: " << t.m_signature << "\n"
                << "// location: " << t.m_location << "\n"
                << "// model: " << t.m_model << "\n"
@@ -845,8 +1034,21 @@ namespace llmcpp
             if (!t.m_code.empty() && t.m_code.back() != '\n') {
                 os << "\n";
             }
+            os.flush();
+            if (os.has_error()) {
+                report(SourceLocation(), DiagnosticsEngine::Warning,
+                       "cannot write cache entry '%0'")
+                    << path;
+                os.clear_error();
+                llvm::sys::fs::remove(temp);
+                return;
+            }
         }
-        llvm::sys::fs::rename(temp, path);
+        if (std::error_code ec = llvm::sys::fs::rename(temp, path)) {
+            llvm::sys::fs::remove(temp);
+            report(SourceLocation(), DiagnosticsEngine::Warning, "cannot publish cache entry: %0")
+                << ec.message();
+        }
     }
 
 }

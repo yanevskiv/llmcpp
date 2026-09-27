@@ -99,12 +99,21 @@ __llm__ double sqrt(double x) {
 | [Shortest path](examples/example10_shortest_path.cpp) | A larger graph algorithm. |
 | [Top-k selection](examples/example11_top_k_by.cpp) | A range template with a projection. |
 | [Projected frequency table](examples/example12_projected_frequency_table.cpp) | An iterator template with a dependent return type. |
+| [System prompt](examples/example13_system_prompt.cpp) | Replacing the compiler's generation instructions. |
+| [Project rules](examples/example14_append_system_prompt.cpp) | Appending rules to the built-in instructions. |
+| [Model selection](examples/example15_model.cpp) | Choosing a model for one function. |
+| [Cache policy](examples/example16_cache_policy.cpp) | Disabling caching or naming a cache policy per function. |
+| [Generation limits](examples/example17_generation_limits.cpp) | Setting attempts and timeout for one function. |
+| [Custom Python agent](examples/example18_custom_agent.cpp) | Connecting a tool-capable local model server through the public protocol. |
+| [Transcript replay](examples/example19_transcript.cpp) | Recording and replaying compiler tool calls without contacting a model. |
+| [Agent configuration](examples/example20_agent_configuration.cpp) | Selecting a backend and its options in a JSON file. |
 
 ## Learn more
 
 - [How to build, test, and clean](docs/how_to_build_test_and_clean.md)
 - [How LLM compilation works](docs/how_llm_compilation_works.md)
 - [How to configure an LLM agent](docs/how_to_configure_an_llm_agent.md)
+- [How to write an agent](docs/how_to_write_an_agent.md)
 - [How to use driver options and caching](docs/how_to_use_driver_options_and_caching.md)
 - [How the source is structured](docs/how_the_source_is_structured.md)
 - [How to develop llmc++](docs/how_to_develop_llmcxx.md)

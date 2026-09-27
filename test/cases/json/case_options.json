@@ -1,0 +1,10 @@
+{
+  "model": "target-model",
+  "functions": {
+    "*": [
+      {"tool": "get_task"},
+      {"tool": "try_compile", "arguments": {"body": "return score;"}},
+      {"tool": "submit", "arguments": {"body": "return score;"}}
+    ]
+  }
+}

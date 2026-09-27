@@ -195,7 +195,8 @@ namespace llmcpp
     // Select native Anthropic unless an external-agent override takes precedence.
     bool use_native_anthropic(const data::DataGenerationOptions &opts)
     {
-        if (!opts.m_agent_command.empty() || !environment("LLMCPP_AGENT").empty()) {
+        if (!opts.m_agent_command.empty() || !opts.m_agent_config_file.empty() ||
+            !environment("LLMCPP_AGENT").empty()) {
             return false;
         }
         std::string backend = environment("LLMCPP_BACKEND");
@@ -215,7 +216,7 @@ namespace llmcpp
             error = "LLMCPP_BACKEND=anthropic needs ANTHROPIC_API_KEY";
             return false;
         }
-        std::string model = environment("LLMCPP_MODEL");
+        std::string model = opts.m_model;
         if (model.empty()) {
             model = "claude-opus-5";
         }
@@ -237,7 +238,7 @@ namespace llmcpp
         for (unsigned turn = 0; turn != maxTurns; ++turn) {
             json::Object request{{"model", model},
                                  {"max_tokens", 16000},
-                                 {"system", agent_system_prompt()},
+                                 {"system", opts.m_system_prompt},
                                  {"tools", toolsValue},
                                  {"messages", messagesValue}};
             json::Object response;
