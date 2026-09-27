@@ -307,7 +307,7 @@ namespace llmcpp
                     outputText = "[error] " + outputText;
                 }
                 toolOutputs.emplace_back(json::Object{{"type", "function_call_output"},
-                                                      {"call_id", callId},
+                                                      {"call_id", callId.str()},
                                                       {"output", std::move(outputText)}});
             }
 
