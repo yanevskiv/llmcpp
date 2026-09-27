@@ -20,7 +20,7 @@ flowchart LR
 | `src/llmcpp/driver_*.cpp` | Command-line handling and Clang driver orchestration. |
 | `src/llmcpp/frontend_*.cpp` | Keyword detection, preprocessing callbacks, and AST actions. |
 | `src/llmcpp/generation_*.cpp` | Annotation validation, cache lookup, generation, and source rewriting. |
-| `src/llmcpp/agent_*.cpp` | The native Anthropic client, external-agent transport, MCP server, and tool dispatch. |
+| `src/llmcpp/agent_*.cpp` | Native API clients, external-agent transport, MCP server, and tool dispatch. |
 | `src/llmcpp/compiler_*.cpp` | AST queries, type inspection, and candidate shadow compilation. |
 | `src/llmcpp/source_*.cpp` | Source locations and text manipulation. |
 | `include/llmcpp/` | Declarations matching the implementation module names. |

@@ -5,6 +5,7 @@
 // Project headers for agent transport and generation options.
 #include "llmcpp/agent_session.h"
 #include "llmcpp/agent_anthropic_client.h"
+#include "llmcpp/agent_openai_client.h"
 #include "llmcpp/data/data_generation_options.h"
 
 // LLVM headers for JSON transport and process support.
@@ -331,6 +332,13 @@ namespace llmcpp
     {
         if (use_native_anthropic(m_opts)) {
             bool completed = generate_anthropic(m_opts, std::move(task), tools, result, error);
+            if (!result.m_model.empty()) {
+                m_model = result.m_model;
+            }
+            return completed;
+        }
+        if (use_native_openai(m_opts)) {
+            bool completed = generate_openai(m_opts, std::move(task), tools, result, error);
             if (!result.m_model.empty()) {
                 m_model = result.m_model;
             }

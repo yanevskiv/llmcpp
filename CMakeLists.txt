@@ -61,6 +61,8 @@ find_package(OpenSSL REQUIRED COMPONENTS SSL Crypto)
 
 add_executable(llmcxx
   src/llmcpp/agent_anthropic_client.cpp
+  src/llmcpp/agent_openai_client.cpp
+  src/llmcpp/agent_prompt.cpp
   src/llmcpp/agent_session.cpp
   src/llmcpp/agent_tool_server.cpp
   src/llmcpp/compiler_ast_text.cpp

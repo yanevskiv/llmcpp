@@ -9,7 +9,7 @@ Build and test the project once before making changes:
 ```
 
 The integration suite covers the driver, AST tools, source rewriting, cache,
-native Anthropic client, and external-agent protocol. Codex and other remote
+native OpenAI and Anthropic clients, and external-agent protocol. Remote
 backends are represented by deterministic local stand-ins, so tests should not
 need credentials or network access.
 
@@ -45,6 +45,6 @@ comments and naming conventions.
 - Keep user documentation aligned with behavior that the integration suite
   exercises.
 
-[Find your way around the source](how_the_source_is_structured.md) describes
+[How the source is structured](how_the_source_is_structured.md) describes
 the component boundaries. [PLAN.md](../PLAN.md) records the prototype design
 and the remaining milestones.

@@ -10,7 +10,8 @@ access, and cleaning the project does not touch system packages.
 - Make or Ninja
 - `apt-get`, `dpkg-deb`, and either `curl` or `wget`
 - Python 3 for the Codex and Claude Code adapters and the scripted test agent
-- At least one generation backend: Codex, Claude Code, or an Anthropic API key
+- At least one generation backend: an OpenAI or Anthropic API key, Codex, or
+  Claude Code
 
 ## Build
 

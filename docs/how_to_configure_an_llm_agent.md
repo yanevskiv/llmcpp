@@ -1,11 +1,12 @@
 # How to configure an LLM agent
 
-`llmc++` can use Codex, Claude Code, or the Anthropic API to write an annotated
-function body. If you already use one of the CLI tools, the quickest setup is
-to reuse that login.
+`llmc++` can use the OpenAI or Anthropic API, Codex, or Claude Code to write an
+annotated function body. If you already use one of the CLI tools, the quickest
+setup is to reuse that login.
 
 | Backend | Select it with | What you need |
 | --- | --- | --- |
+| OpenAI API | `LLMCPP_BACKEND=openai` | `OPENAI_API_KEY` |
 | Codex | `LLMCPP_BACKEND=codex` | An installed and logged-in `codex` CLI |
 | Claude Code | `LLMCPP_BACKEND=claude-code` | An installed and logged-in `claude` CLI |
 | Anthropic API | `LLMCPP_BACKEND=anthropic` | `ANTHROPIC_API_KEY` |
@@ -34,6 +35,22 @@ export LLMCPP_EFFORT=high
 ```
 
 Set `LLMCPP_CODEX` if the executable is not named `codex` or is not on `PATH`.
+
+## Use the OpenAI API
+
+The OpenAI client runs inside the C++ driver and uses the
+[Responses API](https://developers.openai.com/api/docs/guides/function-calling)
+with the compiler tools exposed as function tools:
+
+```sh
+export LLMCPP_BACKEND=openai
+export OPENAI_API_KEY=your-api-key
+llmc++ main.cpp -o main
+```
+
+`LLMCPP_MODEL` selects the model. If it is unset, the prototype uses
+`gpt-6-astra`. `OPENAI_BASE_URL` can point the client at an API-compatible
+endpoint.
 
 ## Use Claude Code
 
@@ -68,8 +85,9 @@ endpoint.
 When `LLMCPP_BACKEND` is unset or set to `auto`, selection follows this order:
 
 1. Use the native Anthropic client when `ANTHROPIC_API_KEY` is set.
-2. Otherwise use Codex when `codex` is on `PATH`.
-3. Otherwise use Claude Code when `claude` is on `PATH`.
+2. Otherwise use the native OpenAI client when `OPENAI_API_KEY` is set.
+3. Otherwise use Codex when `codex` is on `PATH`.
+4. Otherwise use Claude Code when `claude` is on `PATH`.
 
 Set the backend explicitly when more than one is available and you care which
 one handles generation.

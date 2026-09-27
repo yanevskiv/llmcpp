@@ -54,14 +54,14 @@ Add the installed tools to this shell's `PATH`.
 export PATH="$PWD/build/install/bin:$PATH"
 ```
 
-Provide the API key in the environment inherited by `llmc++`. The Anthropic API
-backend is built into the C++ driver and does not start Python. Alternatively,
-use `LLMCPP_BACKEND=claude-code` if you're already logged in with Claude Code;
-that backend uses the installed Python adapter to launch the `claude` CLI.
+Provide the API key in the environment inherited by `llmc++`. The OpenAI and
+Anthropic API backends are built into the C++ driver and do not start Python.
+Alternatively, use `LLMCPP_BACKEND=codex` if you're already logged in with the
+Codex CLI; that backend uses the installed Python adapter.
 ```sh
-# export LLMCPP_BACKEND=claude-code
-export LLMCPP_BACKEND=anthropic
-export ANTHROPIC_API_KEY=your-api-key
+# export LLMCPP_BACKEND=codex
+export LLMCPP_BACKEND=openai
+export OPENAI_API_KEY=your-api-key
 ```
 
 Compile the program and run it:
@@ -103,7 +103,7 @@ __llm__ double sqrt(double x) {
 ## Learn more
 
 - [How to build, test, and clean](docs/how_to_build_test_and_clean.md)
-- [How `__llm__` compilation works](docs/how_llm_compilation_works.md)
+- [How LLM compilation works](docs/how_llm_compilation_works.md)
 - [How to configure an LLM agent](docs/how_to_configure_an_llm_agent.md)
 - [How to use driver options and caching](docs/how_to_use_driver_options_and_caching.md)
 - [How the source is structured](docs/how_the_source_is_structured.md)
