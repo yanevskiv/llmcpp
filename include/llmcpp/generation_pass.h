@@ -125,6 +125,20 @@ namespace llmcpp
          */
         std::string cache_path(const data::DataGenerationTarget &target) const;
         /**
+         * Abbreviate a digest without sharing a prefix with known cache identities.
+         * @param digest Full hexadecimal digest.
+         * @return Unambiguous digest prefix of at least the requested length.
+         */
+        std::string abbreviate(llvm::StringRef digest) const;
+        /**
+         * Format the cache metadata and generated statements for one target.
+         * @param target Target containing generation metadata.
+         * @param abbreviated Whether to abbreviate hashes for source display.
+         * @return Newline-terminated annotated body.
+         */
+        std::string annotated_body(const data::DataGenerationTarget &target,
+                                   bool abbreviated) const;
+        /**
          * Load a compatible generated implementation from cache.
          *
          * @param target data::DataGenerationTarget receiving cached generation metadata.

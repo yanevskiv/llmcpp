@@ -17,6 +17,10 @@ Generation requires a configured backend unless accepted bodies are cached.
 .B \-fllm
 Accepted for compatibility. Generation is already enabled.
 .TP
+.BI \-fllm\-backend= backend
+Select anthropic, openai, codex, or claude, overriding LLMCPP_BACKEND.
+Generation requires an explicit backend unless a custom agent is supplied.
+.TP
 .BI \-fllm\-agent= command
 Run an external JSON-RPC agent instead of selecting a backend.
 .TP
@@ -39,11 +43,16 @@ Use cached bodies only. Do not contact an agent.
 .B \-fllm\-regenerate
 Ignore cached bodies and generate fresh ones.
 .TP
-.B \-fno\-llm\-cache
+.B \-fllm\-no\-cache
 Disable cache reads and writes.
 .TP
 .BI \-fllm\-cache\-dir= directory
 Choose the cache directory. The default is .llmcache beside the source file.
+.TP
+.BI \-fllm\-hash\-abbrev= count
+Set the minimum hash length in generated comments and cache filenames.
+Default: 7. Range: 1 through 64. Ambiguous prefixes grow automatically.
+Full SHA-256 hashes remain in cache metadata for validation.
 .TP
 .BI \-fllm\-max\-attempts= count
 Limit rejected submissions per body. Default: 4.
@@ -62,10 +71,7 @@ Print accepted generated bodies.
 Print task and compiler context without contacting an agent.
 .TP
 .B \-fllm\-verbose
-Log agent tool calls and short results.
-.TP
-.B \-fllm\-quiet
-Suppress normal generation progress.
+Print generation progress, agent tool calls, and short results.
 .TP
 .BI \-fllm\-transcript= file
 Append generation, tool, and outcome events to a JSONL transcript.
@@ -80,8 +86,7 @@ Other output filenames retain normal compiler behavior unless \-\-llm is passed.
 .SH ENVIRONMENT
 .TP
 .B LLMCPP_BACKEND
-Select auto (default), anthropic, openai, codex, or claude-code.
-Automatic selection tries Anthropic, OpenAI, Codex, then Claude Code.
+Select anthropic, openai, codex, or claude. Overridden by \-fllm\-backend.
 .TP
 .B LLMCPP_AGENT
 External agent command, overridden by \-fllm\-agent.

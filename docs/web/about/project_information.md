@@ -17,6 +17,4 @@ The repository's `LICENSE.md` contains the license text. Third-party components
 retain their own licenses.
 
 Tests use deterministic mock agents so development does not require a model
-subscription. The repository's `STYLE.md` defines the C++ style contract;
-`PLAN.md` records design ideas and remaining work, but is not an authoritative
-description of every current behavior.
+subscription. The repository's `STYLE.md` defines the C++ style contract.

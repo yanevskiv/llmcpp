@@ -9,7 +9,7 @@ API endpoint or your own agent process, the sections below explain those routes.
 | --- | --- | --- |
 | OpenAI API | `LLMCPP_BACKEND=openai` | `OPENAI_API_KEY` |
 | Codex | `LLMCPP_BACKEND=codex` | An installed and logged-in `codex` CLI |
-| Claude Code | `LLMCPP_BACKEND=claude-code` | An installed and logged-in `claude` CLI |
+| Claude Code | `LLMCPP_BACKEND=claude` | An installed and logged-in `claude` CLI |
 | Anthropic API | `LLMCPP_BACKEND=anthropic` | `ANTHROPIC_API_KEY` |
 
 ## Use Codex
@@ -58,7 +58,7 @@ endpoint.
 Select Claude Code in the same way:
 
 ```sh
-export LLMCPP_BACKEND=claude-code
+export LLMCPP_BACKEND=claude
 llmc++ main.cpp -o main
 ```
 
@@ -81,17 +81,20 @@ llmc++ main.cpp -o main
 `claude-opus-5`. `ANTHROPIC_BASE_URL` can point the client at an API-compatible
 endpoint.
 
-## Let llmc++ choose
+## Select a backend explicitly
 
-When `LLMCPP_BACKEND` is unset or set to `auto`, selection follows this order:
+Set `LLMCPP_BACKEND` or pass `-fllm-backend=<backend>`; the command-line option
+takes precedence. Supported backends are `anthropic`, `openai`, `codex`, and
+`claude`. API credentials and
+installed CLI programs are used only after the backend has been selected.
 
-1. Use the native Anthropic client when `ANTHROPIC_API_KEY` is set.
-2. Otherwise use the native OpenAI client when `OPENAI_API_KEY` is set.
-3. Otherwise use Codex when `codex` is on `PATH`.
-4. Otherwise use Claude Code when `claude` is on `PATH`.
+```sh
+llmc++ -fllm-backend=claude main.cpp -o main
+```
 
-Set the backend explicitly when more than one is available and you care which
-one handles generation.
+Generation fails if no backend or custom agent is supplied. Ordinary C++
+compilation and context inspection do not need a backend. Cached bodies are
+separated by the selected backend.
 
 ## Use a custom agent
 
@@ -122,11 +125,12 @@ the requested model or report a failure.
 
 `-fllm-agent-config=CONFIG.json` passes a JSON object to an external agent and
 selects the Python adapter instead of a native API client. For the bundled
-adapter, supported fields are `backend`, `model`, `effort`, `executable`,
+adapter, supported fields are `model`, `effort`, `executable`,
 `base_url`, and `api_key`; only fields relevant to its selected backend apply.
-The bundled adapter supports `anthropic`, `codex`, and `claude-code`. For
-example, `{"backend":"codex","effort":"high"}` selects Codex without relying
-on automatic discovery. Prefer environment variables for credentials.
+The bundled adapter supports all four backends, including OpenAI through the
+Responses API. Configuration does not select a backend: use `LLMCPP_BACKEND`
+or `-fllm-backend`. For example, `{"effort":"high"}` configures reasoning effort
+for an explicitly selected CLI backend. Prefer environment variables for credentials.
 Custom agents define their own configuration fields.
 
 > [!TIP]

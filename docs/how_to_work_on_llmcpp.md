@@ -108,5 +108,4 @@ comments and naming conventions.
   exercises.
 
 [How the source is structured](how_the_source_is_structured.md) describes
-the component boundaries. [PLAN.md](../PLAN.md) records the prototype design
-and the remaining milestones.
+the component boundaries.

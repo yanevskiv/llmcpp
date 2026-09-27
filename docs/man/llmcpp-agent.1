@@ -20,8 +20,8 @@ inspect context, validate candidate bodies, and submit accepted code.
 Diagnostics go to standard error; standard output is reserved for protocol
 messages.
 .PP
-The adapter supports the Anthropic API, Codex CLI, and Claude Code CLI.
-OpenAI API support is provided by the compiler's native client, not this adapter.
+The adapter supports the Anthropic API, OpenAI Responses API, Codex CLI,
+and Claude Code CLI.
 Codex and Claude Code require installed, authenticated CLI tools.
 .SH OPTIONS
 .TP
@@ -34,7 +34,7 @@ Run the internal MCP bridge used by CLI backends. Connect to the specified
 Unix-domain socket. This mode is normally started by the adapter itself.
 .SH CONFIGURATION
 Supply a JSON object through llmc++ \-fllm\-agent\-config=file.
-Supported fields are backend, model, effort, executable, base_url, and api_key.
+Supported fields are model, effort, executable, base_url, and api_key.
 Only fields relevant to the selected backend apply.
 .PP
 Configuration values override environment defaults. A model requested by the
@@ -43,9 +43,8 @@ the configuration model. Prefer environment variables for credentials.
 .SH ENVIRONMENT
 .TP
 .B LLMCPP_BACKEND
-Select auto (default), anthropic, codex, or claude-code.
-Automatic selection uses Anthropic when ANTHROPIC_API_KEY is set,
-otherwise Codex when available, otherwise Claude Code.
+Select anthropic, openai, codex, or claude. Required unless replaying
+a transcript.
 .TP
 .B ANTHROPIC_API_KEY
 API credential for the Anthropic backend.
@@ -53,8 +52,15 @@ API credential for the Anthropic backend.
 .B ANTHROPIC_BASE_URL
 Override the Anthropic API endpoint.
 .TP
+.B OPENAI_API_KEY
+API credential for the OpenAI backend.
+.TP
+.B OPENAI_BASE_URL
+Override the OpenAI API endpoint. Defaults to https://api.openai.com.
+.TP
 .B LLMCPP_MODEL
-Model identifier or alias. The Anthropic default is claude-opus-5;
+Model identifier or alias. API defaults are claude-opus-5 for Anthropic
+and gpt-6-astra for OpenAI;
 CLI backends otherwise use their own defaults.
 .TP
 .B LLMCPP_EFFORT
@@ -71,7 +77,7 @@ Enable diagnostics when nonempty. Also set by llmc++ \-fllm\-verbose.
 .SH EXAMPLES
 .nf
 LLMCPP_BACKEND=codex llmc++ main.cpp \-o main
-llmc++ \-fllm\-agent=llmcpp-agent main.cpp
+llmc++ \-fllm\-backend=openai \-fllm\-agent=llmcpp-agent main.cpp
 llmc++ \-fllm\-agent='llmcpp-agent \-\-replay trace.jsonl' main.cpp
 .fi
 .SH EXIT STATUS

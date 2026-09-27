@@ -59,6 +59,10 @@ namespace llmcpp
             std::string m_code;
             /** Model identifier associated with the generated body. */
             std::string m_model;
+            /** Original generation timestamp retained across cache hits. */
+            std::string m_date;
+            /** Agent identity recorded when the implementation was generated. */
+            std::string m_agent_identity;
         };
 
     }
