@@ -68,6 +68,7 @@ namespace llmcpp
         invocation->getDependencyOutputOpts() = DependencyOutputOptions();
         invocation->getLangOpts().CommentOpts.ParseAllComments = true;
         invocation->getPreprocessorOpts().addMacroDef("__llm__=");
+        invocation->getPreprocessorOpts().addMacroDef("__LLMCPP__=1");
         invocation->getPreprocessorOpts().addRemappedFile(
             mainFile, llvm::MemoryBuffer::getMemBufferCopy(parseableSource, mainFile).release());
         invocation->getDiagnosticOpts().IgnoreWarnings = true;
