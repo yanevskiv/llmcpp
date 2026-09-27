@@ -1,4 +1,4 @@
-# How to develop llmc++
+# How to work on llmcpp
 
 Build and test the project once before making changes:
 
@@ -36,10 +36,13 @@ comments and naming conventions.
 
 - Put public and private C++ declarations under `include/llmcpp/` and matching
   definitions under `src/llmcpp/`.
-- Add end-to-end behavior to `test/integration_tests.cpp`. Fixture sources use
-  the `case_` prefix under `test/cases/`, with scripts in `test/cases/json/`
-  and fixture headers in `test/cases/include/`.
-- Use `test/mock-agent/llmcpp-mock-agent` for scripted compiler-tool
+- Add end-to-end behavior to `tests/llmcpp_tests.cpp`. Fixture sources use
+  the `test_` prefix under `tests/`, with scripts in `tests/json/`
+  and fixture headers in `tests/include/`.
+- Put reusable C++ test helpers in `llmcpp::test`, with declarations under
+  `include/llmcpp/test/` and implementations under `src/llmcpp/test/`.
+  Keep `tests/llmcpp_tests.cpp` focused on Catch2 test cases.
+- Use `agents/llmcpp-mock-agent` for scripted compiler-tool
   conversations and CLI-adapter tests. Tests must not depend on an installed
   CLI, a login, or a live model.
 - Keep user documentation aligned with behavior that the integration suite

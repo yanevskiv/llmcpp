@@ -469,9 +469,8 @@ llmcpp/
   patches/               # optional: exported patch series for rebasing onto new LLVM
   agent/                 # optional Python adapter for Claude Code
   tools/llmcpp-prefill/  # parallel cache warmer
-  test/
+  tests/
     lit/                 # clang lit tests (use mock agent)
-    mock-agent/          # scripted MCP client for deterministic tests
     e2e/                 # real-LLM tests, opt-in, not in CI
   examples/              # sample programs using __llm__
   scripts/build.sh       # cmake -G Ninja, clang only, Release+Assertions, lld, ccache

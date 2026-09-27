@@ -1,4 +1,4 @@
-// Every supported form of generated function. Bodies come from json/case_all_forms.json.
+// Every supported form of generated function. Bodies come from json/test_all_forms.json.
 #include <iostream>
 #include <string>
 #include <vector>

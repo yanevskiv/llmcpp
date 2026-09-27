@@ -116,7 +116,7 @@ __llm__ double sqrt(double x) {
 - [How to write an agent](docs/how_to_write_an_agent.md)
 - [How to use driver options and caching](docs/how_to_use_driver_options_and_caching.md)
 - [How the source is structured](docs/how_the_source_is_structured.md)
-- [How to develop llmc++](docs/how_to_develop_llmcxx.md)
+- [How to work on llmcpp](docs/how_to_work_on_llmcpp.md)
 - [Prototype plan and milestones](PLAN.md)
 
 ## Author

@@ -15,7 +15,7 @@ import sys
 # Project files covered by the style contract.
 PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[1]
 SOURCE_DIRECTORIES = (PROJECT_ROOT / "include", PROJECT_ROOT / "src")
-STANDALONE_SOURCES = (PROJECT_ROOT / "test" / "integration_tests.cpp",)
+STANDALONE_SOURCES = (PROJECT_ROOT / "tests" / "llmcpp_tests.cpp",)
 
 # C++ constructs used by individual checks.
 SNAKE_CASE_FILENAME = re.compile(
