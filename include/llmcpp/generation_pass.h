@@ -112,11 +112,12 @@ namespace llmcpp
          */
         std::string rewrite() const;
         /**
-         * Resolve the cache directory for the active source file.
+         * Resolve the cache directory for a target or its source file.
          *
+         * @param target Target supplying the effective cache directory.
          * @return Cache directory path.
          */
-        std::string cache_dir() const;
+        std::string cache_dir(const data::DataGenerationTarget &target) const;
         /**
          * Resolve the cache path for one target.
          *
@@ -127,9 +128,11 @@ namespace llmcpp
         /**
          * Abbreviate a digest without sharing a prefix with known cache identities.
          * @param digest Full hexadecimal digest.
+         * @param target Target supplying the effective cache directory.
          * @return Unambiguous digest prefix of at least the requested length.
          */
-        std::string abbreviate(llvm::StringRef digest) const;
+        std::string abbreviate(llvm::StringRef digest,
+                               const data::DataGenerationTarget &target) const;
         /**
          * Format the cache metadata and generated statements for one target.
          * @param target Target containing generation metadata.

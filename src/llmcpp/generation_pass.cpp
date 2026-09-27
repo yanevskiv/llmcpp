@@ -261,7 +261,7 @@ namespace llmcpp
                     }
                     StringRef literal = text.slice(tokens[i + 1].m_begin, tokens[i + 1].m_end);
                     if (name == "model" || name == "cache" || name == "key" || name == "backend" ||
-                        name == "agent") {
+                        name == "agent" || name == "cache_dir") {
                         auto value = json::parse(literal);
                         if (!value) {
                             llvm::consumeError(value.takeError());
@@ -275,6 +275,8 @@ namespace llmcpp
                         }
                         if (name == "model") {
                             target.m_options.m_model = string->str();
+                        } else if (name == "cache_dir") {
+                            target.m_options.m_cache_dir = string->str();
                         } else if (name == "agent") {
                             if (string->trim().empty()) {
                                 error = "expected a nonblank command for __llm__ option 'agent'";
@@ -980,10 +982,10 @@ namespace llmcpp
     }
 
     // Resolve the cache directory for the current source file.
-    std::string GenerationPass::cache_dir() const
+    std::string GenerationPass::cache_dir(const data::DataGenerationTarget &t) const
     {
-        if (!m_opts.m_cache_dir.empty()) {
-            return m_opts.m_cache_dir;
+        if (!t.m_options.m_cache_dir.empty()) {
+            return t.m_options.m_cache_dir;
         }
         llvm::SmallString<256> dir(m_state.m_main_file);
         llvm::sys::fs::make_absolute(dir);
@@ -995,13 +997,14 @@ namespace llmcpp
     // Resolve the cache file for a target.
     std::string GenerationPass::cache_path(const data::DataGenerationTarget &t) const
     {
-        llvm::SmallString<256> path(cache_dir());
-        llvm::sys::path::append(path, abbreviate(t.m_key) + ".cpp");
+        llvm::SmallString<256> path(cache_dir(t));
+        llvm::sys::path::append(path, abbreviate(t.m_key, t) + ".cpp");
         return std::string(path);
     }
 
     // Extend digest prefixes when known targets or cache entries would be ambiguous.
-    std::string GenerationPass::abbreviate(StringRef digest) const
+    std::string GenerationPass::abbreviate(StringRef digest,
+                                           const data::DataGenerationTarget &t) const
     {
         size_t length = std::min<size_t>(m_opts.m_hash_abbrev, digest.size());
         auto distinguish = [&](StringRef other) {
@@ -1019,7 +1022,7 @@ namespace llmcpp
             distinguish(sha256_hex(target.m_options.m_agent_config));
         }
         std::error_code error;
-        for (llvm::sys::fs::directory_iterator entry(cache_dir(), error), end;
+        for (llvm::sys::fs::directory_iterator entry(cache_dir(t), error), end;
              !error && entry != end; entry.increment(error)) {
             StringRef path = entry->path();
             if (llvm::sys::path::extension(path) != ".cpp") {
@@ -1051,7 +1054,7 @@ namespace llmcpp
                                                bool abbreviated) const
     {
         auto hash = [&](StringRef digest) {
-            return abbreviated ? abbreviate(digest) : digest.str();
+            return abbreviated ? abbreviate(digest, t) : digest.str();
         };
         std::string body;
         llvm::raw_string_ostream os(body);
@@ -1087,7 +1090,7 @@ namespace llmcpp
         std::string path = cache_path(t);
         std::string matchedKey;
         std::error_code error;
-        for (llvm::sys::fs::directory_iterator entry(cache_dir(), error), end;
+        for (llvm::sys::fs::directory_iterator entry(cache_dir(t), error), end;
              !error && entry != end; entry.increment(error)) {
             if (llvm::sys::path::extension(entry->path()) != ".cpp") {
                 continue;
@@ -1156,7 +1159,7 @@ namespace llmcpp
     // Store a generated implementation and its metadata atomically.
     void GenerationPass::write_cache(const data::DataGenerationTarget &t)
     {
-        std::string dir = cache_dir();
+        std::string dir = cache_dir(t);
         if (std::error_code ec = llvm::sys::fs::create_directories(dir)) {
             report(SourceLocation(), DiagnosticsEngine::Warning,
                    "cannot create cache directory '%0': %1")

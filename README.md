@@ -172,6 +172,7 @@ numeric limits must be positive integer literals.
 | `__llm__(offline)` | Use a cached body only for this function, even with `-fllm-regenerate`; fail on a cache miss. Cannot be combined with `no_cache`. |
 | `__llm__(key("hash"))` | Use an explicit cache identity (7 to 64 hexadecimal characters). An unambiguous prefix can select an existing body despite changed inputs; a miss generates and saves under this key. Cannot be combined with `no_cache`. |
 | `__llm__(cache("salt"))` | Enable caching and add a salt to this function's cache key; the string is not a filename. |
+| `__llm__(cache_dir("path"))` | Override the cache directory for this function. Relative paths use the compiler's working directory; caching policy is unchanged. |
 | `__llm__(max_attempts(2))` | Override the rejected-submission limit for this function. |
 | `__llm__(timeout(120))` | Override the generation deadline in seconds for this function. |
 | `__llm__(dump)` | Print this function's accepted body, including on cache hits. |
