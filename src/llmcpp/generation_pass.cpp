@@ -256,7 +256,7 @@ namespace llmcpp
                         return false;
                     }
                     StringRef literal = text.slice(tokens[i + 1].m_begin, tokens[i + 1].m_end);
-                    if (name == "model" || name == "cache" || name == "key") {
+                    if (name == "model" || name == "cache" || name == "key" || name == "backend") {
                         auto value = json::parse(literal);
                         if (!value) {
                             llvm::consumeError(value.takeError());
@@ -270,6 +270,13 @@ namespace llmcpp
                         }
                         if (name == "model") {
                             target.m_options.m_model = string->str();
+                        } else if (name == "backend") {
+                            if (*string != "anthropic" && *string != "openai" &&
+                                *string != "codex" && *string != "claude") {
+                                error = "unknown LLM backend '" + string->str() + "'";
+                                return false;
+                            }
+                            target.m_options.m_backend = string->str();
                         } else if (name == "key") {
                             if (string->size() < 7 || string->size() > 64 ||
                                 string->find_first_not_of("0123456789abcdefABCDEF") !=

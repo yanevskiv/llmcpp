@@ -166,6 +166,7 @@ numeric limits must be positive integer literals.
 | --- | --- |
 | `__llm__` | Generate the body using the driver defaults. Parentheses are optional; `__llm__()` has the same effect. |
 | `__llm__(model("id"))` | Override the model for this function. |
+| `__llm__(backend("name"))` | Override the backend for this function: `anthropic`, `openai`, `codex`, or `claude`. A configured custom agent still takes precedence. |
 | `__llm__(no_cache)` | Disable cache reads and writes for this function. |
 | `__llm__(offline)` | Use a cached body only for this function, even with `-fllm-regenerate`; fail on a cache miss. Cannot be combined with `no_cache`. |
 | `__llm__(key("hash"))` | Use an explicit cache identity (7 to 64 hexadecimal characters). An unambiguous prefix can select an existing body despite changed inputs; a miss generates and saves under this key. Cannot be combined with `no_cache`. |
