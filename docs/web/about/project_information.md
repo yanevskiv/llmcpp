@@ -16,7 +16,6 @@ LLMCPP is distributed under the GNU Lesser General Public License, version 3.
 The repository's `LICENSE.md` contains the license text. Third-party components
 retain their own licenses.
 
-To contribute, start with [How to work on llmcpp](../how_to_work_on_llmcpp.md).
 Tests use deterministic mock agents so development does not require a model
 subscription. The repository's `STYLE.md` defines the C++ style contract;
 `PLAN.md` records design ideas and remaining work, but is not an authoritative

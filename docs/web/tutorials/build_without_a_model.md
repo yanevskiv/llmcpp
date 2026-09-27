@@ -30,6 +30,4 @@ options, and system instructions can also invalidate a cached body, even when
 you did not change the prompt itself. A cache hit is reuse, not a correctness
 guarantee.
 
-You now have the complete loop: describe, generate, review, and reuse. For your
-own project, continue with [driver options and caching](../how_to_use_driver_options_and_caching.md)
-or [custom agents](../how_to_write_an_agent.md).
+You now have the complete loop: describe, generate, review, and reuse.

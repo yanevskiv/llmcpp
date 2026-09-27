@@ -113,7 +113,7 @@ __llm__ double sqrt(double x) {
 ### Environment variables
 
 API credentials and endpoint variables are documented in
-[How to configure an LLM agent](docs/web/how_to_configure_an_llm_agent.md).
+[How to configure an LLM agent](docs/how_to_configure_an_llm_agent.md).
 
 | Variable | Effect |
 | --- | --- |
@@ -224,20 +224,20 @@ sudo apt install clang-tidy-19
 The check scripts expect `clang-format` and `clang-tidy` on `PATH`; if your
 distribution only provides versioned commands, add symlinks or wrappers with
 those names. Live generation also needs a configured
-[LLM backend](docs/web/how_to_configure_an_llm_agent.md); tests use mock agents.
+[LLM backend](docs/how_to_configure_an_llm_agent.md); tests use mock agents.
 
 ## Learn more
 
 Start with the [documentation homepage](docs/web/index.md) for the project overview,
 numbered tutorials, task-focused guides, and contributor API reference.
 
-- [How to build, test, and clean](docs/web/how_to_build_test_and_clean.md)
-- [How LLM compilation works](docs/web/how_llm_compilation_works.md)
-- [How to configure an LLM agent](docs/web/how_to_configure_an_llm_agent.md)
-- [How to write an agent](docs/web/how_to_write_an_agent.md)
-- [How to use driver options and caching](docs/web/how_to_use_driver_options_and_caching.md)
-- [How the source is structured](docs/web/how_the_source_is_structured.md)
-- [How to work on llmcpp](docs/web/how_to_work_on_llmcpp.md)
+- [How to build, test, and clean](docs/how_to_build_test_and_clean.md)
+- [How LLM compilation works](docs/how_llm_compilation_works.md)
+- [How to configure an LLM agent](docs/how_to_configure_an_llm_agent.md)
+- [How to write an agent](docs/how_to_write_an_agent.md)
+- [How to use driver options and caching](docs/how_to_use_driver_options_and_caching.md)
+- [How the source is structured](docs/how_the_source_is_structured.md)
+- [How to work on llmcpp](docs/how_to_work_on_llmcpp.md)
 - [Prototype plan and milestones](PLAN.md)
 
 ## Author

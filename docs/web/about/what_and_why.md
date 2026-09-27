@@ -39,7 +39,6 @@ your specification has been satisfied.
 
 LLMCPP is a prototype. Annotations must be in the main source file, not an
 included header. Templates receive one generated body rather than one per
-instantiation. See [How LLM compilation works](../how_llm_compilation_works.md)
-for the generation process and current limits.
+instantiation.
 
 Ready to try it? [Build the compiler](../tutorials/build_the_compiler.md).

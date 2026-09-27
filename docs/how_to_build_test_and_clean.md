@@ -2,7 +2,7 @@
 
 Use this guide when you need to rebuild the compiler, run its tests, or recover
 space after experimenting. If this is your first build, follow the
-[first tutorial](tutorials/build_the_compiler.md) for a complete walkthrough.
+[first tutorial](web/tutorials/build_the_compiler.md) for a complete walkthrough.
 Downloaded dependencies and build artifacts stay under `deps/` and `build/`;
 cleaning them does not touch system packages.
 
