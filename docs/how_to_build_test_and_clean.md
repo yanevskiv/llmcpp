@@ -9,7 +9,7 @@ cleaning them does not touch system packages.
 ## Requirements
 
 - Debian or Ubuntu on x86-64
-- CMake 3.20 or newer and a C++17 compiler
+- CMake 3.20 or newer and a C++20-capable compiler
 - Make or Ninja
 - `apt-get`, `dpkg-deb`, and either `curl` or `wget`
 - Python 3 for the Codex and Claude Code adapters and the scripted test agent
