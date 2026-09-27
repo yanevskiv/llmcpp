@@ -215,6 +215,63 @@ TEST_CASE("compiler identification macro is defined", "[generation][options]")
     REQUIRE(plain.m_status == 0);
 }
 
+// Replace system instructions for one target without leaking into other targets.
+TEST_CASE("system prompt modifier is scoped to one function", "[generation][cache][options]")
+{
+    llmcpp::test::TestWorkspace work;
+    std::ofstream(work.path() / "target.md") << "Target-only instructions.\n";
+    std::ofstream(work.path() / "default.md") << "Driver instructions.\n";
+    std::ofstream(work.path() / "append.md") << "Appended driver instructions.\n";
+    std::ofstream(work.path() / "prompts.cpp")
+        << "__llm__(system_prompt(\"target.md\")) int answer() { Return 42. }\n"
+        << "__llm__ int increment(int x) { Return x plus one. }\n";
+    std::vector<std::string> args{"--llm", "-fllm-cache-dir=cache",
+                                  "-fllm-system-prompt=default.md",
+                                  "-fllm-append-system-prompt=append.md", "prompts.cpp"};
+    auto result = work.mock("json/test_return_values.json", args);
+    INFO(result.m_err);
+    REQUIRE(result.m_status == 0);
+    std::string log = llmcpp::test::read_file(work.path() / "test_return_values.log");
+    size_t split = log.find("== increment\n");
+    REQUIRE(split != std::string::npos);
+    std::string targetLog = log.substr(0, split);
+    std::string defaultLog = log.substr(split);
+    CHECK(targetLog.find("Target-only instructions.") != std::string::npos);
+    CHECK(targetLog.find("Driver instructions.") == std::string::npos);
+    CHECK(targetLog.find("Appended driver instructions.") == std::string::npos);
+    llmcpp::test::check_contains(defaultLog,
+                                 {"Driver instructions.", "Appended driver instructions."});
+    CHECK(defaultLog.find("Target-only instructions.") == std::string::npos);
+    args.push_back("-fllm-offline");
+    SECTION("same prompt reuses cache")
+    {
+        result = work.llmcpp(args);
+        REQUIRE(result.m_status == 0);
+    }
+    SECTION("changed prompt invalidates cache")
+    {
+        std::ofstream(work.path() / "target.md") << "Changed target instructions.\n";
+        result = work.llmcpp(args);
+        REQUIRE(result.m_status != 0);
+        llmcpp::test::check_contains(result.m_err, {"no cached body", "answer"});
+    }
+    SECTION("missing prompt is diagnosed")
+    {
+        std::ofstream(work.path() / "prompts.cpp")
+            << "__llm__(system_prompt(\"missing.md\")) int answer() {}\n";
+        result = work.llmcpp(args);
+        REQUIRE(result.m_status != 0);
+        llmcpp::test::check_contains(result.m_err, {"cannot read system prompt", "missing.md"});
+    }
+    SECTION("invalid UTF-8 is diagnosed")
+    {
+        std::ofstream(work.path() / "target.md") << char(0xff);
+        result = work.llmcpp(args);
+        REQUIRE(result.m_status != 0);
+        llmcpp::test::check_contains(result.m_err, {"not UTF-8"});
+    }
+}
+
 // Enforce target limits even when command-line defaults allow more work.
 TEST_CASE("target generation budgets are enforced", "[generation][options]")
 {
