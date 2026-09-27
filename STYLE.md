@@ -99,7 +99,7 @@ exercise unusual llmcpp syntax and are exempt where a test requires it.
 ## Enforcement
 
 Install the hooks with `pre-commit install`. The hooks run clang-format in
-check mode, clang-tidy naming checks, and `scripts/check_style.py` for
+check mode, clang-tidy naming checks, and `python/check_style.py` for
 filename, file-header, indentation, Doxygen-form, and body-comment rules. Run
 all checks manually with `pre-commit run --all-files`.
 

@@ -4,6 +4,7 @@
 
 // Project headers for compiler-context tools and shared pass services.
 #include "llmcpp/agent_tool_server.h"
+#include "llmcpp/agent_prompt.h"
 #include "llmcpp/compiler_ast_text.h"
 #include "llmcpp/compiler_sandbox.h"
 #include "llmcpp/compiler_type_inspector.h"
@@ -438,6 +439,10 @@ namespace llmcpp
                        {"location", m_target.m_location},
                        {"language", language_name(c.getLangOpts())},
                        {"prompt", m_target.m_prompt_text}};
+        o["generation"] = agent_generation_settings(m_target.m_options);
+        o["limits"] = json::Object{{"max_attempts", m_target.m_options.m_max_attempts},
+                                   {"max_tool_calls", m_target.m_options.m_max_tool_calls},
+                                   {"timeout_seconds", m_target.m_options.m_timeout_seconds}};
         if (!m_target.m_lambda) {
             if (const RawComment *rc = c.getRawCommentForAnyRedecl(fd)) {
                 o["doc_comment"] = rc->getFormattedText(sm(), c.getDiagnostics());
@@ -865,7 +870,7 @@ namespace llmcpp
         if (m_accepted) {
             return {"A body was already accepted. Stop now.", false};
         }
-        if (m_failed_submits >= m_state.m_opts.m_max_attempts) {
+        if (m_failed_submits >= m_target.m_options.m_max_attempts) {
             return {"REJECTED: no attempts left. Stop now.", true};
         }
 
@@ -894,18 +899,30 @@ namespace llmcpp
         ++m_failed_submits;
         m_last_attempt = body.str();
         m_last_diagnostics = diags;
-        if (m_failed_submits >= m_state.m_opts.m_max_attempts) {
+        if (m_failed_submits >= m_target.m_options.m_max_attempts) {
             return {"REJECTED:\n" + diags + "That was the last allowed attempt. Stop now.", true};
         }
         return {formatv("REJECTED ({0} of {1} attempts used). Fix these problems and "
                         "submit again:\n{2}",
-                        m_failed_submits, m_state.m_opts.m_max_attempts, diags)
+                        m_failed_submits, m_target.m_options.m_max_attempts, diags)
                     .str(),
                 true};
     }
 
     // Dispatch an agent tool call by name.
     data::DataToolResult AgentToolServer::call_tool(StringRef name, const json::Object &args)
+    {
+        data::DataToolResult result = dispatch_tool(name, args);
+        agent_record(m_target.m_options, "tool",
+                     json::Object{{"name", name},
+                                  {"arguments", json::Object(args)},
+                                  {"text", result.m_text},
+                                  {"is_error", result.m_is_error}});
+        return result;
+    }
+
+    // Dispatch a tool request after separating transcript recording.
+    data::DataToolResult AgentToolServer::dispatch_tool(StringRef name, const json::Object &args)
     {
         auto missing = [](StringRef key) {
             return data::DataToolResult{"missing string argument '" + key.str() + "'", true};

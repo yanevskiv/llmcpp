@@ -165,7 +165,7 @@ target_link_libraries(
 )
 
 # Agent launcher distributed with the driver.
-set(LLMCPP_AGENT_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/agent/llmcpp-agent")
+set(LLMCPP_AGENT_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/python/llmcpp-agent")
 set(LLMCPP_AGENT_BINARY "${CMAKE_BINARY_DIR}/bin/llmcpp-agent")
 
 add_custom_command(

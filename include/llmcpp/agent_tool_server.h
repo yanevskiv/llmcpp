@@ -85,6 +85,13 @@ namespace llmcpp
         }
 
     private:
+        /**
+         * Dispatch one compiler tool request.
+         * @param name Requested tool name.
+         * @param args Tool arguments.
+         * @return Tool result and error status.
+         */
+        data::DataToolResult dispatch_tool(llvm::StringRef name, const llvm::json::Object &args);
         /** Look up a name. @param name Name to resolve. @return Lookup response. */
         data::DataToolResult lookup(llvm::StringRef name);
         /**

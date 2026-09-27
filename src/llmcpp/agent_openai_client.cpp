@@ -193,7 +193,8 @@ namespace llmcpp
     // Select native OpenAI unless an external-agent override takes precedence.
     bool use_native_openai(const data::DataGenerationOptions &opts)
     {
-        if (!opts.m_agent_command.empty() || !environment("LLMCPP_AGENT").empty()) {
+        if (!opts.m_agent_command.empty() || !opts.m_agent_config_file.empty() ||
+            !environment("LLMCPP_AGENT").empty()) {
             return false;
         }
         std::string backend = environment("LLMCPP_BACKEND");
@@ -213,7 +214,7 @@ namespace llmcpp
             error = "LLMCPP_BACKEND=openai needs OPENAI_API_KEY";
             return false;
         }
-        std::string model = environment("LLMCPP_MODEL");
+        std::string model = opts.m_model;
         if (model.empty()) {
             model = "gpt-6-astra";
         }
@@ -234,7 +235,7 @@ namespace llmcpp
 
         for (unsigned turn = 0; turn != maxTurns; ++turn) {
             json::Object request{{"model", model},
-                                 {"instructions", agent_system_prompt()},
+                                 {"instructions", opts.m_system_prompt},
                                  {"tools", toolsValue},
                                  {"input", inputValue},
                                  {"max_output_tokens", 16000}};

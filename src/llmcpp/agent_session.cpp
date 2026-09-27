@@ -6,6 +6,7 @@
 #include "llmcpp/agent_session.h"
 #include "llmcpp/agent_anthropic_client.h"
 #include "llmcpp/agent_openai_client.h"
+#include "llmcpp/agent_prompt.h"
 #include "llmcpp/data/data_generation_options.h"
 
 // LLVM headers for JSON transport and process support.
@@ -94,7 +95,8 @@ namespace llmcpp
         m_pid = child;
         m_buffer.clear();
 
-        auto deadline = Clock::now() + std::chrono::seconds(60);
+        auto deadline =
+            Clock::now() + std::chrono::seconds(std::min(60U, m_opts.m_timeout_seconds));
         unsigned noToolCalls = 0;
         while (true) {
             std::optional<json::Value> msg = receive(deadline, error);
@@ -172,6 +174,7 @@ namespace llmcpp
     // Serialize and send one JSON-RPC message.
     bool AgentSession::send(json::Value message, std::string &error)
     {
+        agent_record(m_opts, "send", message);
         std::string line = formatv("{0}", message).str();
         line += '\n';
         size_t done = 0;
@@ -194,6 +197,11 @@ namespace llmcpp
     {
         m_timed_out = false;
         while (true) {
+            if (Clock::now() >= deadline) {
+                m_timed_out = true;
+                error = "timed out";
+                return std::nullopt;
+            }
             size_t nl = m_buffer.find('\n');
             if (nl != std::string::npos) {
                 std::string line = m_buffer.substr(0, nl);
@@ -207,6 +215,7 @@ namespace llmcpp
                             "): " + line.substr(0, 200);
                     return std::nullopt;
                 }
+                agent_record(m_opts, "receive", *v);
                 return std::move(*v);
             }
 
@@ -283,6 +292,9 @@ namespace llmcpp
             }
             response["result"] = json::Object{
                 {"protocolVersion", version},
+                {"llmcppProtocolVersion", 1},
+                {"llmcppCapabilities",
+                 json::Array{"system_prompt", "model", "agent_config", "effective_settings"}},
                 {"capabilities", json::Object{{"tools", json::Object{}}}},
                 {"serverInfo", json::Object{{"name", "llmc++"}, {"version", "0.1-prototype"}}}};
         } else if (method == "tools/list") {
@@ -344,6 +356,7 @@ namespace llmcpp
             }
             return completed;
         }
+        auto deadline = Clock::now() + std::chrono::seconds(m_opts.m_timeout_seconds);
         if (m_pid <= 0 && !start(error)) {
             return false;
         }
@@ -358,7 +371,6 @@ namespace llmcpp
             return false;
         }
 
-        auto deadline = Clock::now() + std::chrono::seconds(m_opts.m_timeout_seconds);
         while (true) {
             std::optional<json::Value> msg = receive(deadline, error);
             if (!msg) {

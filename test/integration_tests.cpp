@@ -251,6 +251,26 @@ namespace
     public:
         FakeOpenAIServer()
         {
+            m_server.Post("/v1/chat/completions", [this](const httplib::Request &request,
+                                                         httplib::Response &response) {
+                unsigned call = ++m_calls;
+                {
+                    std::lock_guard<std::mutex> lock(m_mutex);
+                    m_requests.push_back(request.body);
+                    if (request.get_header_value("Authorization") != "Bearer test-key") {
+                        m_problem = "missing or incorrect Authorization header";
+                    }
+                }
+                const char *name = call == 1 ? "get_task" : call == 2 ? "try_compile" : "submit";
+                const char *arguments = call == 1 ? "{}" : R"json({\"body\":\"\"})json";
+                response.set_content(
+                    std::string(
+                        R"json({"model":"local-model","choices":[{"message":{"role":"assistant","tool_calls":[{"id":"call-)json") +
+                        std::to_string(call) +
+                        R"json(","type":"function","function":{"name":")json" + name +
+                        R"json(","arguments":")json" + arguments + R"json("}}]}}]})json",
+                    "application/json");
+            });
             m_server.Post("/v1/responses", [this](const httplib::Request &request,
                                                   httplib::Response &response) {
                 unsigned call = ++m_calls;
@@ -386,6 +406,157 @@ TEST_CASE("compiler context includes plain prompts", "[context]")
                    {"\"signature\": \"void Counter::report() const\"",
                     "\"prompt\": \"Store the sum of values in total.\"",
                     "Balanced braces in prompts are fine: {", "\"name\": \"doubled\""});
+}
+
+// Verify target policy, prompt resolution, transport visibility, and cache metadata.
+TEST_CASE("target options and prompt files reach the agent", "[generation][options]")
+{
+    Workspace work;
+    std::ofstream(work.path() / "prompt.md") << "Replacement instructions.";
+    std::ofstream(work.path() / "rules.md") << "Project rules.";
+    std::ofstream(work.path() / "config.json")
+        << R"json({"api_key":"secret-value","project":"scores"})json";
+    CommandResult result = work.mock(
+        "json/case_options.json",
+        {"--llm", "-fllm-cache-dir=cache", "-fllm-model=default-model", "-fllm-max-attempts=5",
+         "-fllm-timeout=10", "-fllm-system-prompt=prompt.md", "-fllm-append-system-prompt=rules.md",
+         "-fllm-agent-config=config.json", "-fllm-transcript=trace.jsonl", "case_options.cpp"});
+    INFO(result.m_err);
+    REQUIRE(result.m_status == 0);
+    std::string log = read_file(work.path() / "case_options.log");
+    check_contains(log, {"Replacement instructions.", "Project rules.", "target-model",
+                         "default-model", "\"max_attempts\": 12", "\"timeout_seconds\": 120",
+                         "\"cache\": \"disabled\"", "\"protocol_version\": 1", "secret-value"});
+    std::string transcript = read_file(work.path() / "trace.jsonl");
+    CHECK(transcript.find("secret-value") == std::string::npos);
+    check_contains(transcript, {"[redacted]", "get_task", "try_compile", "submit"});
+    unsigned entries = 0;
+    for (const auto &entry : fs::directory_iterator(work.path() / "cache")) {
+        ++entries;
+        std::string cache = read_file(entry.path());
+        check_contains(
+            cache, {"// version: llmcpp-cache-3", "// context:", "// system_prompt:", "// agent:"});
+        CHECK(entry.path().stem().string().size() == 64);
+    }
+    CHECK(entries == 1);
+    CommandResult replay = work.llmcxx(
+        {"--llm", "-fllm-cache-dir=cache", "-fllm-regenerate", "-fllm-model=default-model",
+         "-fllm-max-attempts=5", "-fllm-timeout=10", "-fllm-system-prompt=prompt.md",
+         "-fllm-append-system-prompt=rules.md", "-fllm-agent-config=config.json",
+         "-fllm-agent=" + (fs::path(LLMCPP_PATH).parent_path() / "llmcpp-agent").string() +
+             " --replay trace.jsonl",
+         "case_options.cpp"});
+    INFO(replay.m_err);
+    REQUIRE(replay.m_status == 0);
+}
+
+// Verify that changes to visible headers and instructions invalidate reviewed bodies.
+TEST_CASE("cache tracks context and system instructions", "[cache][options]")
+{
+    Workspace work;
+    std::ofstream(work.path() / "cached.cpp")
+        << "#include \"include/case_context.h\"\n__llm__() int cached() { Return the score. }\n";
+    CommandResult generated =
+        work.mock("json/case_options.json", {"--llm", "-fllm-cache-dir=cache", "cached.cpp"});
+    INFO(generated.m_err);
+    REQUIRE(generated.m_status == 0);
+    CommandResult offline =
+        work.llmcxx({"--llm", "-fllm-offline", "-fllm-cache-dir=cache", "cached.cpp"});
+    INFO(offline.m_err);
+    REQUIRE(offline.m_status == 0);
+    SECTION("header contents")
+    {
+        std::ofstream(work.path() / "include/case_score.h") << "inline constexpr int score = 8;\n";
+    }
+    SECTION("system prompt")
+    {
+        std::ofstream(work.path() / "rules.md") << "Use a different implementation style.";
+    }
+    SECTION("metadata")
+    {
+        for (const auto &entry : fs::directory_iterator(work.path() / "cache")) {
+            std::ofstream(entry.path())
+                << "// llmcpp cache entry\n// model: mock\n// ---\nreturn 7;\n";
+        }
+    }
+    std::vector<std::string> args{"--llm", "-fllm-offline", "-fllm-cache-dir=cache", "cached.cpp"};
+    if (fs::exists(work.path() / "rules.md")) {
+        args.push_back("-fllm-append-system-prompt=rules.md");
+    }
+    offline = work.llmcxx(args);
+    CHECK(offline.m_status != 0);
+    check_contains(offline.m_err, {"no cached body"});
+}
+
+// Accept bare modifiers, empty option lists, and configured modifiers together.
+TEST_CASE("modifier parentheses are optional", "[generation][options]")
+{
+    Workspace work;
+    std::ofstream(work.path() / "modifiers.cpp")
+        << "#include \"include/case_context.h\"\n"
+        << "__llm__ int bare() { Return the score. }\n"
+        << "__llm__() int empty() { Return the score. }\n"
+        << "__llm__(max_attempts(2)) int configured() { Return the score. }\n";
+    CommandResult result =
+        work.mock("json/case_options.json", {"--llm", "-fno-llm-cache", "modifiers.cpp"});
+    INFO(result.m_err);
+    REQUIRE(result.m_status == 0);
+    std::string source = read_file(work.path() / "modifiers.llm.cpp");
+    CHECK(source.find("__llm__") == std::string::npos);
+    CHECK(count_occurrences(source, "return score;") == 3);
+}
+
+// Enforce target limits even when command-line defaults allow more work.
+TEST_CASE("target generation budgets are enforced", "[generation][options]")
+{
+    Workspace work;
+    SECTION("submission attempts")
+    {
+        std::ofstream(work.path() / "budget.cpp") << "__llm__(max_attempts(1)) int budget() {}\n";
+        std::ofstream(work.path() / "json/case_budget.json") << R"json({
+            "functions": {"*": [
+                {"tool":"submit","arguments":{"body":"return missing;"}},
+                {"tool":"submit","arguments":{"body":"return 7;"}}
+            ]}
+        })json";
+        CommandResult result =
+            work.mock("json/case_budget.json",
+                      {"--llm", "-fno-llm-cache", "-fllm-max-attempts=4", "budget.cpp"});
+        CHECK(result.m_status != 0);
+        check_contains(read_file(work.path() / "case_budget.log"), {"last allowed attempt"});
+    }
+    SECTION("generation timeout")
+    {
+        std::ofstream(work.path() / "budget.cpp") << "__llm__(timeout(1)) void budget() {}\n";
+        std::ofstream(work.path() / "json/case_budget.json") << R"json({
+            "functions": {"*": [{"sleep":3},{"tool":"submit","arguments":{"body":""}}]}
+        })json";
+        CommandResult result = work.mock(
+            "json/case_budget.json", {"--llm", "-fno-llm-cache", "-fllm-timeout=10", "budget.cpp"});
+        CHECK(result.m_status != 0);
+        check_contains(result.m_err, {"agent timed out after 1s"});
+    }
+}
+
+// Reject malformed policies before contacting any model.
+TEST_CASE("invalid generation configuration is diagnosed", "[options]")
+{
+    Workspace work;
+    for (const std::string &options : {"timeout(0)", "model(2)", "cache(\"v1\"), no_cache",
+                                       "timeout(1), timeout(2)", "unknown(1)"}) {
+        std::ofstream(work.path() / "invalid.cpp") << "__llm__(" << options << ") int f() {}\n";
+        CommandResult result = work.llmcxx({"-fllm-dump-context", "invalid.cpp"});
+        INFO(options);
+        CHECK(result.m_status != 0);
+        check_contains(result.m_err, {"error:"});
+    }
+    CommandResult missing = work.llmcxx({"-fllm-system-prompt=missing.md", "case_failure.cpp"});
+    CHECK(missing.m_status != 0);
+    check_contains(missing.m_err, {"cannot read system prompt"});
+    std::ofstream(work.path() / "invalid.json") << "[]";
+    CommandResult config = work.llmcxx({"-fllm-agent-config=invalid.json", "case_failure.cpp"});
+    CHECK(config.m_status != 0);
+    check_contains(config.m_err, {"agent configuration must be a JSON object"});
 }
 
 // Verify generated source, native compilation, preprocessing, and caching.
@@ -574,16 +745,49 @@ TEST_CASE("native OpenAI client completes a compiler tool loop", "[generation][o
     REQUIRE(run.m_status == 0);
 }
 
+// Verify that a custom Python agent translates compiler tools for a model server.
+TEST_CASE("custom chat agent completes a compiler tool loop", "[generation][agent]")
+{
+    Workspace work;
+    FakeOpenAIServer server;
+    fs::path adapter = work.path() / "python/case_chat_agent.py";
+    std::ofstream(work.path() / "chat.json")
+        << "{\"base_url\":\"" << server.base_url() << "/v1\",\"model\":\"config-model\"}";
+    CommandResult result =
+        work.llmcxx({"-fno-llm-cache", "-fllm-agent=python3 " + shell_quote(adapter.string()),
+                     "-fllm-agent-config=chat.json", "-fllm-model=local-model", "case_failure.cpp",
+                     "-o", "custom-agent"},
+                    {{"LOCAL_MODEL_API_KEY", "test-key"}});
+    INFO(result.m_err);
+    REQUIRE(result.m_status == 0);
+    CHECK(server.calls() == 3);
+    CHECK(server.problem().empty());
+    auto requests = server.requests();
+    REQUIRE(requests.size() == 3);
+    check_contains(requests[0], {"local-model", "system", "get_task"});
+    CHECK(requests[0].find("config-model") == std::string::npos);
+    check_contains(requests[1], {"Do something impossible.", "timeout_seconds", "max_attempts"});
+    CHECK(work.run("./custom-agent").m_status == 0);
+}
+
 // Verify that the Codex CLI connects to the compiler through the MCP bridge.
 TEST_CASE("Codex CLI completes a compiler tool loop", "[generation][codex]")
 {
     Workspace work;
-    CommandResult result = work.llmcxx({"-fno-llm-cache", "case_failure.cpp", "-o", "codex"},
-                                       {{"ANTHROPIC_API_KEY", ""},
-                                        {"LLMCPP_AGENT", ""},
-                                        {"LLMCPP_BACKEND", "codex"},
-                                        {"LLMCPP_CODEX", MOCK_AGENT_PATH},
-                                        {"LLMCPP_EFFORT", "high"}});
+    std::ofstream(work.path() / "codex.json")
+        << "{\"backend\":\"codex\",\"effort\":\"high\",\"executable\":\"" << MOCK_AGENT_PATH
+        << "\"}";
+    std::vector<std::string> args{"-fno-llm-cache", "case_failure.cpp", "-o", "codex"};
+    SECTION("environment defaults") {}
+    SECTION("agent configuration")
+    {
+        args.push_back("-fllm-agent-config=codex.json");
+    }
+    CommandResult result = work.llmcxx(args, {{"ANTHROPIC_API_KEY", ""},
+                                              {"LLMCPP_AGENT", ""},
+                                              {"LLMCPP_BACKEND", "codex"},
+                                              {"LLMCPP_CODEX", MOCK_AGENT_PATH},
+                                              {"LLMCPP_EFFORT", "high"}});
     INFO(result.m_err);
     REQUIRE(result.m_status == 0);
 

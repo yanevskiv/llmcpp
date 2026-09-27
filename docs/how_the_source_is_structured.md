@@ -25,7 +25,7 @@ flowchart LR
 | `src/llmcpp/source_*.cpp` | Source locations and text manipulation. |
 | `include/llmcpp/` | Declarations matching the implementation module names. |
 | `include/llmcpp/data/` | Header-only records shared across components. |
-| `agent/llmcpp-agent` | The Python adapter for Codex, Claude Code, and external Anthropic access. |
+| `python/llmcpp-agent` | The Python adapter for Codex, Claude Code, and external Anthropic access. |
 | `test/` | Catch2 integration tests, source fixtures, and deterministic backend stand-ins. |
 
 ## Follow one generated body

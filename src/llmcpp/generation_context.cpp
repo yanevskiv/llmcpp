@@ -34,6 +34,7 @@ namespace llmcpp
     {
         std::vector<data::DataSourceEdit> edits;
         for (const data::DataGenerationTarget &other : m_targets) {
+            edits.push_back({other.m_keyword_offset, other.m_keyword_end, ""});
             if (&other == &current) {
                 edits.push_back(
                     {other.m_l_brace, other.m_r_brace + 1, "{\n" + candidate.str() + "\n}"});

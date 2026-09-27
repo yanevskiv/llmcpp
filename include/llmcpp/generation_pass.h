@@ -5,7 +5,6 @@
 #ifndef LLMCPP_GENERATION_PASS_H
 #define LLMCPP_GENERATION_PASS_H
 
-#include "llmcpp/agent_session.h"
 #include "llmcpp/data/data_generation_result.h"
 #include "llmcpp/generation_context.h"
 
@@ -95,6 +94,11 @@ namespace llmcpp
          */
         void name_targets(::clang::ASTContext &ctx);
         /**
+         * Fingerprint visible source, headers, and compiler settings.
+         * @return SHA-256 digest of compilation context.
+         */
+        std::string context_digest() const;
+        /**
          * Generate and validate one target implementation.
          *
          * @param target data::DataGenerationTarget to generate.
@@ -156,8 +160,6 @@ namespace llmcpp
         const data::DataGenerationOptions &m_opts;
         /** Output result updated as the pass progresses. */
         data::DataGenerationResult &m_result;
-        /** Native or external session used to request generated code. */
-        AgentSession m_agent;
         /** Original Clang frontend arguments. */
         std::vector<std::string> m_cc1_args;
         /** Original main-source contents. */

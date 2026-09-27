@@ -4,9 +4,15 @@
 
 // Project header for llmc++ option handling.
 #include "llmcpp/driver_options.h"
+#include "llmcpp/agent_prompt.h"
 
 // LLVM header for string references.
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Support/JSON.h"
+#include "llvm/Support/MemoryBuffer.h"
+
+// Standard header for environment defaults.
+#include <cstdlib>
 
 // Namespace for llmc++ driver option handling.
 namespace llmcpp
@@ -16,22 +22,27 @@ namespace llmcpp
     DriverOptions::DriverOptions(std::string executable)
     {
         m_options.m_executable = std::move(executable);
+        m_options.m_system_prompt = agent_system_prompt().str();
+        if (const char *model = std::getenv("LLMCPP_MODEL")) {
+            m_options.m_model = model;
+        }
     }
 
     // Parse arguments following the executable name.
     bool DriverOptions::parse(llvm::ArrayRef<const char *> args, std::string &error)
     {
         bool valid = true;
+        std::vector<bool> handled;
         for (const char *arg : args) {
-            if (parse_llm_option(arg, error) && !error.empty()) {
+            handled.push_back(parse_llm_option(arg, error));
+            if (handled.back() && !error.empty()) {
                 valid = false;
             }
         }
 
         for (unsigned index = 0; index < args.size(); ++index) {
             llvm::StringRef arg = args[index];
-            std::string ignoredError;
-            if (parse_llm_option(arg, ignoredError)) {
+            if (handled[index]) {
                 continue;
             }
             if (arg.starts_with("--driver-mode=")) {
@@ -58,7 +69,52 @@ namespace llmcpp
             }
             m_clang_args.push_back(arg.str());
         }
-        return valid;
+        return valid && resolve_configuration(error);
+    }
+
+    // Read configuration once so every target receives the same instructions.
+    bool DriverOptions::resolve_configuration(std::string &error)
+    {
+        std::vector<std::string> files = m_options.m_append_system_prompt_files;
+        if (!m_options.m_system_prompt_file.empty()) {
+            m_options.m_system_prompt.clear();
+            files.insert(files.begin(), m_options.m_system_prompt_file);
+        }
+        for (const std::string &file : files) {
+            auto buffer = llvm::MemoryBuffer::getFile(file);
+            if (!buffer) {
+                error = "cannot read system prompt '" + file + "': " + buffer.getError().message();
+                return false;
+            }
+            llvm::StringRef text = (*buffer)->getBuffer();
+            if (!llvm::json::isUTF8(text)) {
+                error = "system prompt '" + file + "' is not UTF-8";
+                return false;
+            }
+            if (!m_options.m_system_prompt.empty()) {
+                m_options.m_system_prompt += "\n\n";
+            }
+            m_options.m_system_prompt += text.str();
+        }
+        if (!m_options.m_agent_config_file.empty()) {
+            auto buffer = llvm::MemoryBuffer::getFile(m_options.m_agent_config_file);
+            if (!buffer) {
+                error = "cannot read agent configuration '" + m_options.m_agent_config_file + "'";
+                return false;
+            }
+            auto value = llvm::json::parse((*buffer)->getBuffer());
+            if (!value) {
+                llvm::consumeError(value.takeError());
+                error = "agent configuration must be a JSON object";
+                return false;
+            }
+            if (!value->getAsObject()) {
+                error = "agent configuration must be a JSON object";
+                return false;
+            }
+            m_options.m_agent_config = (*buffer)->getBuffer().str();
+        }
+        return true;
     }
 
     // Build arguments for Clang's driver.
@@ -112,6 +168,31 @@ namespace llmcpp
         } else if (arg == "-fllm") {
         } else if (arg.consume_front("-fllm-agent=")) {
             m_options.m_agent_command = arg.str();
+        } else if (arg.consume_front("-fllm-system-prompt=")) {
+            m_options.m_system_prompt_file = arg.str();
+            if (arg.empty()) {
+                error = "-fllm-system-prompt requires a file";
+            }
+        } else if (arg.consume_front("-fllm-append-system-prompt=")) {
+            m_options.m_append_system_prompt_files.push_back(arg.str());
+            if (arg.empty()) {
+                error = "-fllm-append-system-prompt requires a file";
+            }
+        } else if (arg.consume_front("-fllm-model=")) {
+            m_options.m_model = arg.str();
+            if (arg.empty()) {
+                error = "-fllm-model requires a model id";
+            }
+        } else if (arg.consume_front("-fllm-agent-config=")) {
+            m_options.m_agent_config_file = arg.str();
+            if (arg.empty()) {
+                error = "-fllm-agent-config requires a file";
+            }
+        } else if (arg.consume_front("-fllm-transcript=")) {
+            m_options.m_transcript_file = arg.str();
+            if (arg.empty()) {
+                error = "-fllm-transcript requires a file";
+            }
         } else if (arg == "-fllm-offline") {
             m_options.m_offline = true;
         } else if (arg == "-fllm-regenerate") {
@@ -149,7 +230,7 @@ namespace llmcpp
     // Parse a decimal unsigned option value.
     bool DriverOptions::parse_unsigned(llvm::StringRef value, unsigned &out)
     {
-        return !value.getAsInteger(10, out);
+        return !value.getAsInteger(10, out) && out != 0;
     }
 
 }

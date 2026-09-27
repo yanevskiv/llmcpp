@@ -555,6 +555,12 @@ templates, PCH-accelerated `try_compile`, clangd behavior, and bringing in const
 
 ## 13. System prompts and a public agent interface
 
+Implemented: prompt files, model requests, agent JSON configuration, version 1
+stdio generation protocol, redacted transcripts and replay, and a standalone
+Python chat-server adapter example. Persistent socket connections remain future
+work as described in §13.2. The optional generic adapter is an example, rather
+than a required compiler backend.
+
 The compiler should own the system instructions given to a generation agent.
 They are part of the generation contract, not a private implementation detail
 of one backend.
@@ -661,3 +667,84 @@ The native OpenAI and Anthropic clients are useful convenience paths, but
 should not become the extension mechanism for every model provider. Likewise,
 provider-specific compiler flags should stay out of the driver and belong to
 the selected agent.
+
+---
+
+## 14. Per-target generation options
+
+Implemented: function-like modifiers, target policy precedence, agent-visible
+effective settings, context-aware cache identity, metadata validation, and
+unique temporary cache files. Bare `__llm__` remains valid; parentheses are
+optional and carry extra options.
+
+Some generation decisions belong to one `__llm__` target, rather than to the
+whole compiler invocation. A target should be able to override command-line
+defaults for cache use, model preference, and generation limits.
+
+### 14.1 Syntax and compatibility
+
+The long-term syntax should attach options directly to the modifier:
+
+```cpp
+__llm__(model("claude-opus-5-5"), no_cache)
+void summarize(std::string_view text) {
+    Write a one-sentence summary.
+}
+```
+
+Use bare `__llm__` when no options are needed. `__llm__()` is also accepted.
+Parentheses attach a small, declarative option language to the modifier.
+
+Keep the object-like macro used to discover and erase bare modifiers. In the
+coordinate-preserving parsing view, blank optional arguments before Clang sees
+them. Parse the options from the original source and remove the complete
+modifier from shadow compilations and rewritten output. This supports both
+spellings without changing existing sources.
+
+An alternative compatibility syntax is an adjacent C++ attribute, but it is
+less cohesive and would require careful treatment of unknown-attribute
+diagnostics. Prefer options attached directly to the modifier.
+
+### 14.2 Option set and precedence
+
+Start with a small set:
+
+```cpp
+__llm__(no_cache)
+__llm__(cache("stable-v1"))
+__llm__(model("claude-opus-5-5"))
+__llm__(max_attempts(2), timeout(120))
+```
+
+Settings resolve from lowest to highest precedence:
+
+```text
+built-in defaults < command-line defaults < per-target __llm__ options
+```
+
+`no_cache` disables both reading and writing for that target. `cache("name")`
+is a cache-key salt, not a filename; it gives a project an explicit way to
+keep separate reviewed bodies for intentionally different policies.
+
+`model("id")` is a requested model, carried in the public `llm/generate`
+request described in §13. Agents that cannot supply it must report that fact,
+rather than silently selecting another model. Model selection stays
+provider-independent in the compiler and is implemented by the selected
+agent.
+
+### 14.3 Cache identity
+
+Per-target cache controls must be part of the cache identity. Include the
+normalized options, resolved system-prompt digest, compiler cache format, and
+a compilation-context fingerprint in the entry's full key and metadata.
+
+The initial context fingerprint should favor safe invalidation: hash relevant
+compiler language options and macro definitions, the main source outside
+generated prompt bodies, and the contents of transitive project headers. This
+may regenerate after an unrelated header edit, but it avoids reusing a body
+generated against stale visible C++ context. Later work can narrow the
+fingerprint to declarations made available to the agent.
+
+Cache reads should validate the entry schema version, full key, and context
+fingerprint. Cache writes need unique temporary paths so simultaneous compiler
+processes cannot race on one fixed `.tmp` file.

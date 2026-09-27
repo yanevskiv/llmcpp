@@ -3,7 +3,7 @@ repos:
     hooks:
       - id: llmcpp-style-contract
         name: llmcpp style contract
-        entry: python3 scripts/check_style.py
+        entry: python3 python/check_style.py
         language: system
         pass_filenames: false
         files: ^(include/|src/|test/integration_tests\.cpp$)

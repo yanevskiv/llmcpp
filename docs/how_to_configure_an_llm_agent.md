@@ -103,6 +103,31 @@ the `llm/generate` request.
 The deterministic agent under `test/mock-agent/` uses this interface in the
 integration suite.
 
+The public generation protocol is version 1. See
+[How to write an agent](how_to_write_an_agent.md) for its messages and a Python
+adapter for tool-capable local model servers.
+
+## Supply instructions and configuration
+
+`-fllm-system-prompt=PROMPT.md` replaces the built-in system instructions.
+`-fllm-append-system-prompt=RULES.md` appends rules after those instructions;
+repeat it to append multiple files in command-line order. Prompt files must
+contain UTF-8 text. A replacement prompt should still explain the compiler
+tools and require an accepted `submit`.
+
+`-fllm-model=<id>` overrides the environment model default. A function can
+override it again with `__llm__(model("id"))`. The selected agent must honor
+the requested model or report a failure.
+
+`-fllm-agent-config=CONFIG.json` passes a JSON object to an external agent and
+selects the Python adapter instead of a native API client. For the bundled
+adapter, supported fields are `backend`, `model`, `effort`, `executable`,
+`base_url`, and `api_key`; only fields relevant to its selected backend apply.
+The bundled adapter supports `anthropic`, `codex`, and `claude-code`. For
+example, `{"backend":"codex","effort":"high"}` selects Codex without relying
+on automatic discovery. Prefer environment variables for credentials.
+Custom agents define their own configuration fields.
+
 > [!TIP]
 > Run `llmc++ -fllm-dump-context source.cpp` to inspect the task and compiler
 > context without contacting any backend.

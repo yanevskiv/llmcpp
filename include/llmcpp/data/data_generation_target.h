@@ -5,6 +5,7 @@
 #ifndef LLMCPP_DATA_GENERATION_TARGET_H
 #define LLMCPP_DATA_GENERATION_TARGET_H
 
+#include "llmcpp/data/data_generation_options.h"
 #include <string>
 /** Namespace for required Clang forward declarations. */
 namespace clang
@@ -30,6 +31,14 @@ namespace llmcpp
             ::clang::CompoundStmt *m_body = nullptr;
             /** Source offset of the annotation spelling. */
             unsigned m_keyword_offset = 0;
+            /** Source offset immediately after the complete modifier. */
+            unsigned m_keyword_end = 0;
+            /** Effective generation policy for this target. */
+            DataGenerationOptions m_options;
+            /** Explicit project salt for this target's cache identity. */
+            std::string m_cache_salt;
+            /** Digest of compilation arguments and visible source contents. */
+            std::string m_context_digest;
             /** Source offset of the prompt body's opening brace. */
             unsigned m_l_brace = 0;
             /** Source offset of the prompt body's closing brace. */

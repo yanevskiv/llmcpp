@@ -3,13 +3,24 @@
 
 LLMCPP_MOCK_SCRIPT names a JSON file:
 
-  {"model": "mock",
-   "functions": {
-     "<name from llm/generate, or *>": [
-       {"tool": "get_task"},
-       {"tool": "submit", "arguments": {"body": "..."}},
-       {"respond": {"status": "error", "message": "..."}}
-     ]}}
+    {
+        "model": "mock",
+        "functions": {
+            "<name from llm/generate, or *>": [
+                {"tool": "get_task"},
+                {
+                    "tool": "submit",
+                    "arguments": {"body": "..."}
+                },
+                {
+                    "respond": {
+                        "status": "error",
+                        "message": "..."
+                    }
+                }
+            ]
+        }
+    }
 
 Steps run in order; "respond" answers llm/generate immediately. Every tool
 call and its result are appended to LLMCPP_MOCK_LOG if it is set.
@@ -23,6 +34,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 
 
 def config_value(arguments, key):
@@ -37,8 +49,12 @@ def config_value(arguments, key):
 
 def mcp_request(process, request_id, method, params):
     """Send one MCP request and return its result."""
-    message = {"jsonrpc": "2.0", "id": request_id,
-               "method": method, "params": params}
+    message = {
+        "jsonrpc": "2.0",
+        "id": request_id,
+        "method": method,
+        "params": params,
+    }
     process.stdin.write(json.dumps(message) + "\n")
     process.stdin.flush()
     while True:
@@ -74,21 +90,34 @@ def run_codex(arguments):
         names = {tool.get("name") for tool in tools}
         if not {"get_task", "try_compile", "submit"}.issubset(names):
             raise RuntimeError("llmc++ tools were not exposed to Codex")
-        mcp_request(bridge, 3, "tools/call",
-                    {"name": "get_task", "arguments": {}})
-        mcp_request(bridge, 4, "tools/call",
-                    {"name": "try_compile", "arguments": {"body": ""}})
+        mcp_request(bridge, 3, "tools/call", {
+            "name": "get_task",
+            "arguments": {},
+        })
+        mcp_request(bridge, 4, "tools/call", {
+            "name": "try_compile",
+            "arguments": {"body": ""},
+        })
         submitted = mcp_request(
             bridge, 5, "tools/call",
-            {"name": "submit", "arguments": {"body": ""}})
+            {
+                "name": "submit",
+                "arguments": {"body": ""},
+            },
+        )
         if submitted.get("isError"):
             raise RuntimeError("llmc++ rejected the mock Codex submission")
     finally:
         bridge.terminate()
         bridge.wait()
 
-    print(json.dumps({"type": "item.completed", "item": {
-        "type": "agent_message", "text": "Generated the function body."}}))
+    print(json.dumps({
+        "type": "item.completed",
+        "item": {
+            "type": "agent_message",
+            "text": "Generated the function body.",
+        },
+    }))
     return 0
 
 
@@ -109,8 +138,12 @@ def run_agent():
     def request(method, params):
         counter[0] += 1
         request_id = "mock-%d" % counter[0]
-        send({"jsonrpc": "2.0", "id": request_id, "method": method,
-              "params": params})
+        send({
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "method": method,
+            "params": params,
+        })
         while True:
             line = stdin.readline()
             if not line:
@@ -119,11 +152,20 @@ def run_agent():
             if message.get("id") == request_id and "method" not in message:
                 return message.get("result", {})
 
-    request("initialize", {"protocolVersion": "2025-06-18", "capabilities": {},
-                           "clientInfo": {"name": "mock", "version": "1",
-                                          "model": model}})
+    request("initialize", {
+        "protocolVersion": "2025-06-18",
+        "capabilities": {},
+        "clientInfo": {
+            "name": "mock",
+            "version": "1",
+            "model": model,
+        },
+    })
     request("tools/list", {})
-    send({"jsonrpc": "2.0", "method": "notifications/initialized"})
+    send({
+        "jsonrpc": "2.0",
+        "method": "notifications/initialized",
+    })
 
     for line in stdin:
         message = json.loads(line)
@@ -132,27 +174,42 @@ def run_agent():
         task = message["params"]
         functions = script.get("functions", {})
         steps = functions.get(task["name"], functions.get("*"))
-        result = {"status": "ok", "model": model}
+        result = {
+            "status": "ok",
+            "model": model,
+        }
         if steps is None:
             steps = []
-            result = {"status": "error",
-                      "message": "mock: no script for %s" % task["name"]}
+            result = {
+                "status": "error",
+                "message": "mock: no script for %s" % task["name"],
+            }
         if log:
             log.write("== %s\n" % task["name"])
+            log.write("task: " + json.dumps(task) + "\n")
         for step in steps:
+            if "sleep" in step:
+                time.sleep(step["sleep"])
+                continue
             if "respond" in step:
                 result = step["respond"]
                 break
             arguments = step.get("arguments", {})
-            reply = request("tools/call", {"name": step["tool"],
-                                           "arguments": arguments})
+            reply = request("tools/call", {
+                "name": step["tool"],
+                "arguments": arguments,
+            })
             text = "\n".join(c.get("text", "") for c in reply.get("content", []))
             if log:
                 log.write("-- %s %s\n%s%s\n" % (
                     step["tool"], json.dumps(arguments),
                     "[error] " if reply.get("isError") else "", text))
                 log.flush()
-        send({"jsonrpc": "2.0", "id": message["id"], "result": result})
+        send({
+            "jsonrpc": "2.0",
+            "id": message["id"],
+            "result": result,
+        })
 
 
 def main():
