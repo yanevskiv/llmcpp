@@ -1,6 +1,6 @@
-"""Configure the llmcpp documentation site and C++ reference."""
+"""Configure the llmc++ documentation site and C++ reference."""
 
-project = "LLMCPP"
+project = "llmc++"
 extensions = ["myst_parser", "breathe", "sphinxcontrib.mermaid"]
 source_suffix = {".md": "markdown"}
 root_doc = "index"
