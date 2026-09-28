@@ -26,9 +26,12 @@ The image is named `yanevskiv:llmcpp-dev` and starts from `ubuntu:latest`.
 It includes the build tools and fetched dependencies. Docker builds use
 x86-64 because the current dependency layout requires it.
 
-The wrapper runs as your user and writes build output to `build/docker/out`
-and the installation to `build/docker/install`. Native build output and
-dependencies are left untouched. Build arguments are forwarded to `do_build.sh`.
+The wrapper runs as your user and calls `do_build.sh`, writing build output to
+`build/out` and the installation to `build/install`, just like a native build.
+Container dependencies are kept in a separate volume; host dependencies are
+left untouched. Build arguments are forwarded to `do_build.sh`.
+Run `./do_clean.sh` before switching between native and Docker builds because
+CMake caches source paths and compiler settings.
 After building, run the integration suite with
 `./do_build_in_docker.sh --target test`.
 
