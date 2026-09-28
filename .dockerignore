@@ -1,0 +1,5 @@
+**
+!do_fetch_deps.sh
+!docker/
+!docker/Dockerfile
+!docker/entrypoint.sh

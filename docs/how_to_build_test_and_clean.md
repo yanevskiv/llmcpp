@@ -18,15 +18,15 @@ access, and cleaning the project does not touch system packages.
 Fetch the pinned dependencies, then configure, build, and install the project:
 
 ```sh
-./fetch-deps.sh
-./build.sh --parallel 8
+./do_fetch_deps.sh
+./do_build.sh --parallel 8
 ```
 
-`fetch-deps.sh` extracts Clang/LLVM 19, OpenSSL development files, Catch2, and
+`do_fetch_deps.sh` extracts Clang/LLVM 19, OpenSSL development files, Catch2, and
 the single-header `cpp-httplib` dependency into `deps/`. Re-running it reuses
 what is already present.
 
-`build.sh` creates the build tree under `build/out/` and installs a runnable
+`do_build.sh` creates the build tree under `build/out/` and installs a runnable
 bundle under `build/install/`.
 
 ## Test
@@ -34,7 +34,7 @@ bundle under `build/install/`.
 Run the registered Catch2 integration tests with:
 
 ```sh
-./test.sh
+./do_test.sh
 ```
 
 The suite uses deterministic stand-ins for external agents and APIs. It does
@@ -44,10 +44,10 @@ not spend model tokens or require a live backend login.
 
 | Command | Removes |
 | --- | --- |
-| `./clean.sh` | `build/`, including compiled objects and the install bundle |
-| `./clean-deps.sh` | Downloaded content under `deps/` |
+| `./do_clean.sh` | `build/`, including compiled objects and the install bundle |
+| `./do_clean_deps.sh` | Downloaded content under `deps/` |
 
-Run `clean-deps.sh` only when you want the next build to download dependencies
+Run `do_clean_deps.sh` only when you want the next build to download dependencies
 again.
 
 ## Output layout

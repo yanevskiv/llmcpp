@@ -8,7 +8,7 @@ fi
 
 build_dir=build/out
 if [ ! -f "$build_dir/compile_commands.json" ]; then
-    echo "build the project with ./build.sh before running the naming check" >&2
+    echo "build the project with ./do_build.sh before running the naming check" >&2
     exit 1
 fi
 

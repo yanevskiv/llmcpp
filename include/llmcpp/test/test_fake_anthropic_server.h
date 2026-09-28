@@ -1,9 +1,9 @@
 /*
- * C++ header for fake openai server test support.
+ * C++ header for fake anthropic server test support.
  */
 
-#ifndef LLMCPP_TEST_FAKE_OPENAI_SERVER_H
-#define LLMCPP_TEST_FAKE_OPENAI_SERVER_H
+#ifndef LLMCPP_TEST_FAKE_ANTHROPIC_SERVER_H
+#define LLMCPP_TEST_FAKE_ANTHROPIC_SERVER_H
 
 #include <httplib.h>
 
@@ -16,13 +16,13 @@
 namespace llmcpp::test
 {
     /** Class for scripted model API responses. */
-    class FakeOpenAIServer
+    class TestFakeAnthropicServer
     {
     public:
         /** Initialize the scripted model server. */
-        FakeOpenAIServer();
+        TestFakeAnthropicServer();
         /** Stop and clean up the scripted model server. */
-        ~FakeOpenAIServer();
+        ~TestFakeAnthropicServer();
         /**
          * Get the local API URL.
          * @return Loopback URL including its port.

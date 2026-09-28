@@ -3,14 +3,14 @@
  */
 
 // Headers for integration-test support and its dependencies.
-#include "llmcpp/test/fake_openai_server.h"
+#include "llmcpp/test/test_fake_openai_server.h"
 
 #include <stdexcept>
 // Namespace for llmcpp integration-test support.
 namespace llmcpp::test
 {
     // Initialize the scripted model server.
-    FakeOpenAIServer::FakeOpenAIServer()
+    TestFakeOpenAIServer::TestFakeOpenAIServer()
     {
         m_server.Post("/v1/chat/completions", [this](const httplib::Request &request,
                                                      httplib::Response &response) {
@@ -75,7 +75,7 @@ namespace llmcpp::test
     }
 
     // Stop and clean up the scripted model server.
-    FakeOpenAIServer::~FakeOpenAIServer()
+    TestFakeOpenAIServer::~TestFakeOpenAIServer()
     {
         m_server.stop();
         if (m_thread.joinable()) {
@@ -84,26 +84,26 @@ namespace llmcpp::test
     }
 
     // Get the local API URL.
-    std::string FakeOpenAIServer::base_url() const
+    std::string TestFakeOpenAIServer::base_url() const
     {
         return "http://127.0.0.1:" + std::to_string(m_port);
     }
 
     // Get the request count.
-    unsigned FakeOpenAIServer::calls() const
+    unsigned TestFakeOpenAIServer::calls() const
     {
         return m_calls;
     }
 
     // Get captured requests.
-    std::vector<std::string> FakeOpenAIServer::requests() const
+    std::vector<std::string> TestFakeOpenAIServer::requests() const
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         return m_requests;
     }
 
     // Get the request validation diagnostic.
-    std::string FakeOpenAIServer::problem() const
+    std::string TestFakeOpenAIServer::problem() const
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         return m_problem;

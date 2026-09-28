@@ -5,10 +5,10 @@
 // Catch2 declarations and integration-test support.
 #include <catch2/catch_test_macros.hpp>
 
-#include "llmcpp/test/fake_anthropic_server.h"
-#include "llmcpp/test/fake_openai_server.h"
-#include "llmcpp/test/text.h"
-#include "llmcpp/test/workspace.h"
+#include "llmcpp/test/test_fake_anthropic_server.h"
+#include "llmcpp/test/test_fake_openai_server.h"
+#include "llmcpp/test/test_text.h"
+#include "llmcpp/test/test_workspace.h"
 
 // Standard headers used by test scenarios.
 #include <chrono>
@@ -23,8 +23,8 @@ namespace fs = std::filesystem;
 // Verify diagnostics for unsupported or malformed annotations.
 TEST_CASE("invalid annotations produce llmc++ diagnostics", "[diagnostics]")
 {
-    llmcpp::test::Workspace work;
-    llmcpp::test::CommandResult result = work.llmcpp({"-fsyntax-only", "test_errors.cpp"});
+    llmcpp::test::TestWorkspace work;
+    llmcpp::test::TestCommandResult result = work.llmcpp({"-fsyntax-only", "test_errors.cpp"});
     REQUIRE(result.m_status != 0);
     llmcpp::test::check_contains(
         result.m_err, {"preprocessor directives are not allowed in an __llm__ function body",
@@ -39,11 +39,11 @@ TEST_CASE("invalid annotations produce llmc++ diagnostics", "[diagnostics]")
 // Verify that annotations in included headers are rejected.
 TEST_CASE("annotations in headers are rejected", "[diagnostics]")
 {
-    llmcpp::test::Workspace work;
+    llmcpp::test::TestWorkspace work;
     for (const char *mode : {"-fsyntax-only", "--llm"}) {
         DYNAMIC_SECTION(mode)
         {
-            llmcpp::test::CommandResult result = work.llmcpp({mode, "test_header.cpp"});
+            llmcpp::test::TestCommandResult result = work.llmcpp({mode, "test_header.cpp"});
             REQUIRE(result.m_status != 0);
             llmcpp::test::check_contains(result.m_err,
                                          {"__llm__ function in included header 'test_header.h'"});
@@ -54,8 +54,8 @@ TEST_CASE("annotations in headers are rejected", "[diagnostics]")
 // Verify that offline mode fails when no cached body exists.
 TEST_CASE("offline mode requires cached bodies", "[cache]")
 {
-    llmcpp::test::Workspace work;
-    llmcpp::test::CommandResult result = work.llmcpp(
+    llmcpp::test::TestWorkspace work;
+    llmcpp::test::TestCommandResult result = work.llmcpp(
         {"-fsyntax-only", "-fllm-offline", "-fllm-cache-dir=empty", "test_all_forms.cpp"});
     REQUIRE(result.m_status != 0);
     llmcpp::test::check_contains(result.m_err,
@@ -65,8 +65,9 @@ TEST_CASE("offline mode requires cached bodies", "[cache]")
 // Verify that plain prompt text reaches compiler-context output.
 TEST_CASE("compiler context includes plain prompts", "[context]")
 {
-    llmcpp::test::Workspace work;
-    llmcpp::test::CommandResult result = work.llmcpp({"-fllm-dump-context", "test_all_forms.cpp"});
+    llmcpp::test::TestWorkspace work;
+    llmcpp::test::TestCommandResult result =
+        work.llmcpp({"-fllm-dump-context", "test_all_forms.cpp"});
     REQUIRE(result.m_status == 0);
     llmcpp::test::check_contains(result.m_out, {"\"signature\": \"void Counter::report() const\"",
                                                 "\"prompt\": \"Store the sum of values in total.\"",
@@ -77,12 +78,12 @@ TEST_CASE("compiler context includes plain prompts", "[context]")
 // Verify target policy, prompt resolution, transport visibility, and cache metadata.
 TEST_CASE("target options and prompt files reach the agent", "[generation][options]")
 {
-    llmcpp::test::Workspace work;
+    llmcpp::test::TestWorkspace work;
     std::ofstream(work.path() / "prompt.md") << "Replacement instructions.";
     std::ofstream(work.path() / "rules.md") << "Project rules.";
     std::ofstream(work.path() / "config.json")
         << R"json({"api_key":"secret-value","project":"scores"})json";
-    llmcpp::test::CommandResult result = work.mock(
+    llmcpp::test::TestCommandResult result = work.mock(
         "json/test_options.json",
         {"--llm", "-fllm-cache-dir=cache", "-fllm-model=default-model", "-fllm-max-attempts=5",
          "-fllm-timeout=10", "-fllm-system-prompt=prompt.md", "-fllm-append-system-prompt=rules.md",
@@ -106,7 +107,7 @@ TEST_CASE("target options and prompt files reach the agent", "[generation][optio
         CHECK(entry.path().stem().string().size() == 64);
     }
     CHECK(entries == 1);
-    llmcpp::test::CommandResult replay = work.llmcpp(
+    llmcpp::test::TestCommandResult replay = work.llmcpp(
         {"--llm", "-fllm-cache-dir=cache", "-fllm-regenerate", "-fllm-model=default-model",
          "-fllm-max-attempts=5", "-fllm-timeout=10", "-fllm-system-prompt=prompt.md",
          "-fllm-append-system-prompt=rules.md", "-fllm-agent-config=config.json",
@@ -120,14 +121,14 @@ TEST_CASE("target options and prompt files reach the agent", "[generation][optio
 // Verify that changes to visible headers and instructions invalidate reviewed bodies.
 TEST_CASE("cache tracks context and system instructions", "[cache][options]")
 {
-    llmcpp::test::Workspace work;
+    llmcpp::test::TestWorkspace work;
     std::ofstream(work.path() / "cached.cpp")
         << "#include \"include/test_context.h\"\n__llm__() int cached() { Return the score. }\n";
-    llmcpp::test::CommandResult generated =
+    llmcpp::test::TestCommandResult generated =
         work.mock("json/test_options.json", {"--llm", "-fllm-cache-dir=cache", "cached.cpp"});
     INFO(generated.m_err);
     REQUIRE(generated.m_status == 0);
-    llmcpp::test::CommandResult offline =
+    llmcpp::test::TestCommandResult offline =
         work.llmcpp({"--llm", "-fllm-offline", "-fllm-cache-dir=cache", "cached.cpp"});
     INFO(offline.m_err);
     REQUIRE(offline.m_status == 0);
@@ -158,13 +159,13 @@ TEST_CASE("cache tracks context and system instructions", "[cache][options]")
 // Accept bare modifiers, empty option lists, and configured modifiers together.
 TEST_CASE("modifier parentheses are optional", "[generation][options]")
 {
-    llmcpp::test::Workspace work;
+    llmcpp::test::TestWorkspace work;
     std::ofstream(work.path() / "modifiers.cpp")
         << "#include \"include/test_context.h\"\n"
         << "__llm__ int bare() { Return the score. }\n"
         << "__llm__() int empty() { Return the score. }\n"
         << "__llm__(max_attempts(2)) int configured() { Return the score. }\n";
-    llmcpp::test::CommandResult result =
+    llmcpp::test::TestCommandResult result =
         work.mock("json/test_options.json", {"--llm", "-fno-llm-cache", "modifiers.cpp"});
     INFO(result.m_err);
     REQUIRE(result.m_status == 0);
@@ -176,7 +177,7 @@ TEST_CASE("modifier parentheses are optional", "[generation][options]")
 // Enforce target limits even when command-line defaults allow more work.
 TEST_CASE("target generation budgets are enforced", "[generation][options]")
 {
-    llmcpp::test::Workspace work;
+    llmcpp::test::TestWorkspace work;
     SECTION("submission attempts")
     {
         std::ofstream(work.path() / "budget.cpp") << "__llm__(max_attempts(1)) int budget() {}\n";
@@ -186,7 +187,7 @@ TEST_CASE("target generation budgets are enforced", "[generation][options]")
                 {"tool":"submit","arguments":{"body":"return 7;"}}
             ]}
         })json";
-        llmcpp::test::CommandResult result =
+        llmcpp::test::TestCommandResult result =
             work.mock("json/test_budget.json",
                       {"--llm", "-fno-llm-cache", "-fllm-max-attempts=4", "budget.cpp"});
         CHECK(result.m_status != 0);
@@ -199,7 +200,7 @@ TEST_CASE("target generation budgets are enforced", "[generation][options]")
         std::ofstream(work.path() / "json/test_budget.json") << R"json({
             "functions": {"*": [{"sleep":3},{"tool":"submit","arguments":{"body":""}}]}
         })json";
-        llmcpp::test::CommandResult result = work.mock(
+        llmcpp::test::TestCommandResult result = work.mock(
             "json/test_budget.json", {"--llm", "-fno-llm-cache", "-fllm-timeout=10", "budget.cpp"});
         CHECK(result.m_status != 0);
         llmcpp::test::check_contains(result.m_err, {"agent timed out after 1s"});
@@ -209,21 +210,21 @@ TEST_CASE("target generation budgets are enforced", "[generation][options]")
 // Reject malformed policies before contacting any model.
 TEST_CASE("invalid generation configuration is diagnosed", "[options]")
 {
-    llmcpp::test::Workspace work;
+    llmcpp::test::TestWorkspace work;
     for (const std::string &options : {"timeout(0)", "model(2)", "cache(\"v1\"), no_cache",
                                        "timeout(1), timeout(2)", "unknown(1)"}) {
         std::ofstream(work.path() / "invalid.cpp") << "__llm__(" << options << ") int f() {}\n";
-        llmcpp::test::CommandResult result = work.llmcpp({"-fllm-dump-context", "invalid.cpp"});
+        llmcpp::test::TestCommandResult result = work.llmcpp({"-fllm-dump-context", "invalid.cpp"});
         INFO(options);
         CHECK(result.m_status != 0);
         llmcpp::test::check_contains(result.m_err, {"error:"});
     }
-    llmcpp::test::CommandResult missing =
+    llmcpp::test::TestCommandResult missing =
         work.llmcpp({"-fllm-system-prompt=missing.md", "test_failure.cpp"});
     CHECK(missing.m_status != 0);
     llmcpp::test::check_contains(missing.m_err, {"cannot read system prompt"});
     std::ofstream(work.path() / "invalid.json") << "[]";
-    llmcpp::test::CommandResult config =
+    llmcpp::test::TestCommandResult config =
         work.llmcpp({"-fllm-agent-config=invalid.json", "test_failure.cpp"});
     CHECK(config.m_status != 0);
     llmcpp::test::check_contains(config.m_err, {"agent configuration must be a JSON object"});
@@ -232,8 +233,8 @@ TEST_CASE("invalid generation configuration is diagnosed", "[options]")
 // Verify generated source, native compilation, preprocessing, and caching.
 TEST_CASE("generated sources compile and cache reproducibly", "[generation][cache]")
 {
-    llmcpp::test::Workspace work;
-    llmcpp::test::CommandResult generate = work.mock(
+    llmcpp::test::TestWorkspace work;
+    llmcpp::test::TestCommandResult generate = work.mock(
         "json/test_all_forms.json", {"--llm", "-fllm-cache-dir=cache", "test_all_forms.cpp"});
     INFO(generate.m_err);
     REQUIRE(generate.m_status == 0);
@@ -245,15 +246,15 @@ TEST_CASE("generated sources compile and cache reproducibly", "[generation][cach
     CHECK(llmcpp::test::count_occurrences(source, "// llmcpp: generated (model=mock-model, key=") ==
           8);
 
-    llmcpp::test::CommandResult build =
+    llmcpp::test::TestCommandResult build =
         work.llmcpp({"test_all_forms.llm.cpp", "-o", "from-llm-cpp"});
     INFO(build.m_err);
     REQUIRE(build.m_status == 0);
-    llmcpp::test::CommandResult run = work.run("./from-llm-cpp");
+    llmcpp::test::TestCommandResult run = work.run("./from-llm-cpp");
     REQUIRE(run.m_status == 0);
     CHECK(run.m_out == llmcpp::test::read_file(work.path() / "test_all_forms.expected"));
 
-    llmcpp::test::CommandResult gxx =
+    llmcpp::test::TestCommandResult gxx =
         work.run("g++", {"-std=c++17", "test_all_forms.llm.cpp", "-o", "with-gxx"});
     INFO(gxx.m_err);
     REQUIRE(gxx.m_status == 0);
@@ -261,7 +262,7 @@ TEST_CASE("generated sources compile and cache reproducibly", "[generation][cach
     REQUIRE(run.m_status == 0);
     CHECK(run.m_out == llmcpp::test::read_file(work.path() / "test_all_forms.expected"));
 
-    llmcpp::test::CommandResult offline = work.llmcpp(
+    llmcpp::test::TestCommandResult offline = work.llmcpp(
         {"-fllm-offline", "-fllm-cache-dir=cache", "test_all_forms.cpp", "-o", "direct"});
     INFO(offline.m_err);
     REQUIRE(offline.m_status == 0);
@@ -271,20 +272,20 @@ TEST_CASE("generated sources compile and cache reproducibly", "[generation][cach
 
     auto oldTime = fs::file_time_type::clock::now() - std::chrono::hours(24);
     fs::last_write_time(generated, oldTime);
-    llmcpp::test::CommandResult regenerate =
+    llmcpp::test::TestCommandResult regenerate =
         work.llmcpp({"--llm", "-fllm-offline", "-fllm-cache-dir=cache", "test_all_forms.cpp"});
     INFO(regenerate.m_err);
     REQUIRE(regenerate.m_status == 0);
     CHECK(fs::last_write_time(generated) == oldTime);
 
-    llmcpp::test::CommandResult preprocess = work.llmcpp(
+    llmcpp::test::TestCommandResult preprocess = work.llmcpp(
         {"--llm", "-E", "-fllm-offline", "-fllm-cache-dir=cache", "test_all_forms.cpp"});
     INFO(preprocess.m_err);
     REQUIRE(preprocess.m_status == 0);
     llmcpp::test::check_contains(llmcpp::test::read_file(work.path() / "test_all_forms.llm.ii"),
                                  {"++count;"});
 
-    llmcpp::test::CommandResult multiple =
+    llmcpp::test::TestCommandResult multiple =
         work.llmcpp({"--llm", "test_all_forms.cpp", "test_tools.cpp", "-o", "both.cpp"});
     REQUIRE(multiple.m_status != 0);
     llmcpp::test::check_contains(multiple.m_err,
@@ -294,8 +295,8 @@ TEST_CASE("generated sources compile and cache reproducibly", "[generation][cach
 // Verify semantic tools and candidate validation through the mock agent.
 TEST_CASE("agent tools expose compiler context and validate bodies", "[tools]")
 {
-    llmcpp::test::Workspace work;
-    llmcpp::test::CommandResult result =
+    llmcpp::test::TestWorkspace work;
+    llmcpp::test::TestCommandResult result =
         work.mock("json/test_tools.json", {"-fno-llm-cache", "test_tools.cpp", "-o", "tools"});
     INFO(result.m_err);
     REQUIRE(result.m_status == 0);
@@ -307,7 +308,7 @@ TEST_CASE("agent tools expose compiler context and validate bodies", "[tools]")
                                        "\"writable\": true", "\"name\": \"hits\""});
     CHECK(llmcpp::test::count_occurrences(log, "[error] REJECTED") == 2);
 
-    llmcpp::test::CommandResult run = work.run("./tools");
+    llmcpp::test::TestCommandResult run = work.run("./tools");
     REQUIRE(run.m_status == 0);
     CHECK(run.m_out == "5\n1\n");
 }
@@ -316,8 +317,8 @@ TEST_CASE("agent tools expose compiler context and validate bodies", "[tools]")
 TEST_CASE("value-returning and empty targets infer behavior without body comments",
           "[generation][returns][comments]")
 {
-    llmcpp::test::Workspace work;
-    llmcpp::test::CommandResult generate = work.mock(
+    llmcpp::test::TestWorkspace work;
+    llmcpp::test::TestCommandResult generate = work.mock(
         "json/test_return_values.json", {"--llm", "-fno-llm-cache", "test_return_values.cpp"});
     INFO(generate.m_err);
     REQUIRE(generate.m_status == 0);
@@ -340,19 +341,19 @@ TEST_CASE("value-returning and empty targets infer behavior without body comment
     CHECK(source.find("Return zero instead") == std::string::npos);
     CHECK(source.find("Make the program fail") == std::string::npos);
 
-    llmcpp::test::CommandResult build =
+    llmcpp::test::TestCommandResult build =
         work.run("g++", {"-std=c++17", generated.string(), "-o", "returns"});
     INFO(build.m_err);
     REQUIRE(build.m_status == 0);
-    llmcpp::test::CommandResult run = work.run("./returns");
+    llmcpp::test::TestCommandResult run = work.run("./returns");
     REQUIRE(run.m_status == 0);
 }
 
 // Verify diagnostics for an agent-declared generation failure.
 TEST_CASE("agent failures are reported", "[failures]")
 {
-    llmcpp::test::Workspace work;
-    llmcpp::test::CommandResult result = work.mock(
+    llmcpp::test::TestWorkspace work;
+    llmcpp::test::TestCommandResult result = work.mock(
         "json/test_failure.json", {"-fno-llm-cache", "test_failure.cpp", "-o", "failure"});
     REQUIRE(result.m_status != 0);
     llmcpp::test::check_contains(
@@ -363,9 +364,9 @@ TEST_CASE("agent failures are reported", "[failures]")
 // Verify that Anthropic generation runs in-process without the Python agent.
 TEST_CASE("native Anthropic client completes a compiler tool loop", "[generation][anthropic]")
 {
-    llmcpp::test::Workspace work;
-    llmcpp::test::FakeAnthropicServer server;
-    llmcpp::test::CommandResult result =
+    llmcpp::test::TestWorkspace work;
+    llmcpp::test::TestFakeAnthropicServer server;
+    llmcpp::test::TestCommandResult result =
         work.llmcpp({"-fno-llm-cache", "test_failure.cpp", "-o", "native-anthropic"},
                     {{"LLMCPP_AGENT", ""},
                      {"LLMCPP_BACKEND", "anthropic"},
@@ -386,16 +387,16 @@ TEST_CASE("native Anthropic client completes a compiler tool loop", "[generation
     llmcpp::test::check_contains(
         requests[2], {"\"tool_use_id\":\"call-2\"", "compiles without errors or warnings"});
 
-    llmcpp::test::CommandResult run = work.run("./native-anthropic");
+    llmcpp::test::TestCommandResult run = work.run("./native-anthropic");
     REQUIRE(run.m_status == 0);
 }
 
 // Verify that OpenAI generation runs in-process without the Python agent.
 TEST_CASE("native OpenAI client completes a compiler tool loop", "[generation][openai]")
 {
-    llmcpp::test::Workspace work;
-    llmcpp::test::FakeOpenAIServer server;
-    llmcpp::test::CommandResult result =
+    llmcpp::test::TestWorkspace work;
+    llmcpp::test::TestFakeOpenAIServer server;
+    llmcpp::test::TestCommandResult result =
         work.llmcpp({"-fno-llm-cache", "test_failure.cpp", "-o", "native-openai"},
                     {{"LLMCPP_AGENT", ""},
                      {"LLMCPP_BACKEND", "openai"},
@@ -417,19 +418,19 @@ TEST_CASE("native OpenAI client completes a compiler tool loop", "[generation][o
     llmcpp::test::check_contains(requests[2], {"\"previous_response_id\":\"response-2\"", "call-2",
                                                "compiles without errors or warnings"});
 
-    llmcpp::test::CommandResult run = work.run("./native-openai");
+    llmcpp::test::TestCommandResult run = work.run("./native-openai");
     REQUIRE(run.m_status == 0);
 }
 
 // Verify that a custom Python agent translates compiler tools for a model server.
 TEST_CASE("custom chat agent completes a compiler tool loop", "[generation][agent]")
 {
-    llmcpp::test::Workspace work;
-    llmcpp::test::FakeOpenAIServer server;
+    llmcpp::test::TestWorkspace work;
+    llmcpp::test::TestFakeOpenAIServer server;
     fs::path adapter = work.path() / "python/test_chat_agent.py";
     std::ofstream(work.path() / "chat.json")
         << "{\"base_url\":\"" << server.base_url() << "/v1\",\"model\":\"config-model\"}";
-    llmcpp::test::CommandResult result = work.llmcpp(
+    llmcpp::test::TestCommandResult result = work.llmcpp(
         {"-fno-llm-cache", "-fllm-agent=python3 " + llmcpp::test::shell_quote(adapter.string()),
          "-fllm-agent-config=chat.json", "-fllm-model=local-model", "test_failure.cpp", "-o",
          "custom-agent"},
@@ -450,7 +451,7 @@ TEST_CASE("custom chat agent completes a compiler tool loop", "[generation][agen
 // Verify that the Codex CLI connects to the compiler through the MCP bridge.
 TEST_CASE("Codex CLI completes a compiler tool loop", "[generation][codex]")
 {
-    llmcpp::test::Workspace work;
+    llmcpp::test::TestWorkspace work;
     std::ofstream(work.path() / "codex.json")
         << "{\"backend\":\"codex\",\"effort\":\"high\",\"executable\":\"" << MOCK_AGENT_PATH
         << "\"}";
@@ -460,23 +461,23 @@ TEST_CASE("Codex CLI completes a compiler tool loop", "[generation][codex]")
     {
         args.push_back("-fllm-agent-config=codex.json");
     }
-    llmcpp::test::CommandResult result = work.llmcpp(args, {{"ANTHROPIC_API_KEY", ""},
-                                                            {"LLMCPP_AGENT", ""},
-                                                            {"LLMCPP_BACKEND", "codex"},
-                                                            {"LLMCPP_CODEX", MOCK_AGENT_PATH},
-                                                            {"LLMCPP_EFFORT", "high"}});
+    llmcpp::test::TestCommandResult result = work.llmcpp(args, {{"ANTHROPIC_API_KEY", ""},
+                                                                {"LLMCPP_AGENT", ""},
+                                                                {"LLMCPP_BACKEND", "codex"},
+                                                                {"LLMCPP_CODEX", MOCK_AGENT_PATH},
+                                                                {"LLMCPP_EFFORT", "high"}});
     INFO(result.m_err);
     REQUIRE(result.m_status == 0);
 
-    llmcpp::test::CommandResult run = work.run("./codex");
+    llmcpp::test::TestCommandResult run = work.run("./codex");
     REQUIRE(run.m_status == 0);
 }
 
 // Verify diagnostics when the configured agent cannot start.
 TEST_CASE("a missing agent is reported", "[failures]")
 {
-    llmcpp::test::Workspace work;
-    llmcpp::test::CommandResult result =
+    llmcpp::test::TestWorkspace work;
+    llmcpp::test::TestCommandResult result =
         work.llmcpp({"-fllm-agent=/nonexistent/llmcpp-agent", "-fno-llm-cache", "test_failure.cpp",
                      "-o", "failure"});
     REQUIRE(result.m_status != 0);

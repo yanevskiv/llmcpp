@@ -3,14 +3,14 @@
  */
 
 // Headers for integration-test support and its dependencies.
-#include "llmcpp/test/fake_anthropic_server.h"
+#include "llmcpp/test/test_fake_anthropic_server.h"
 
 #include <stdexcept>
 // Namespace for llmcpp integration-test support.
 namespace llmcpp::test
 {
     // Initialize the scripted model server.
-    FakeAnthropicServer::FakeAnthropicServer()
+    TestFakeAnthropicServer::TestFakeAnthropicServer()
     {
         m_server.Post("/v1/messages", [this](const httplib::Request &request,
                                              httplib::Response &response) {
@@ -55,7 +55,7 @@ namespace llmcpp::test
     }
 
     // Stop and clean up the scripted model server.
-    FakeAnthropicServer::~FakeAnthropicServer()
+    TestFakeAnthropicServer::~TestFakeAnthropicServer()
     {
         m_server.stop();
         if (m_thread.joinable()) {
@@ -64,26 +64,26 @@ namespace llmcpp::test
     }
 
     // Get the local API URL.
-    std::string FakeAnthropicServer::base_url() const
+    std::string TestFakeAnthropicServer::base_url() const
     {
         return "http://127.0.0.1:" + std::to_string(m_port);
     }
 
     // Get the request count.
-    unsigned FakeAnthropicServer::calls() const
+    unsigned TestFakeAnthropicServer::calls() const
     {
         return m_calls;
     }
 
     // Get captured requests.
-    std::vector<std::string> FakeAnthropicServer::requests() const
+    std::vector<std::string> TestFakeAnthropicServer::requests() const
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         return m_requests;
     }
 
     // Get the request validation diagnostic.
-    std::string FakeAnthropicServer::problem() const
+    std::string TestFakeAnthropicServer::problem() const
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         return m_problem;

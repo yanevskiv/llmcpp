@@ -3,7 +3,7 @@
  */
 
 // Headers for integration-test support and its dependencies.
-#include "llmcpp/test/text.h"
+#include "llmcpp/test/test_text.h"
 
 #include <catch2/catch_test_macros.hpp>
 

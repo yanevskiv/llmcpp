@@ -3,8 +3,8 @@
  */
 
 // Headers for integration-test support and its dependencies.
-#include "llmcpp/test/workspace.h"
-#include "llmcpp/test/text.h"
+#include "llmcpp/test/test_workspace.h"
+#include "llmcpp/test/test_text.h"
 
 #include <atomic>
 #include <cstdlib>
@@ -15,7 +15,7 @@
 namespace llmcpp::test
 {
     // Initialize the isolated workspace.
-    Workspace::Workspace()
+    TestWorkspace::TestWorkspace()
     {
         static std::atomic<unsigned> next{0};
         m_root = std::filesystem::temp_directory_path() /
@@ -33,22 +33,22 @@ namespace llmcpp::test
     }
 
     // Stop and clean up the isolated workspace.
-    Workspace::~Workspace()
+    TestWorkspace::~TestWorkspace()
     {
         std::error_code error;
         std::filesystem::remove_all(m_root, error);
     }
 
     // Get the workspace directory.
-    const std::filesystem::path &Workspace::path() const
+    const std::filesystem::path &TestWorkspace::path() const
     {
         return m_root;
     }
 
     // Run a child command.
-    CommandResult
-    Workspace::run(const std::string &executable, const std::vector<std::string> &arguments,
-                   const std::vector<std::pair<std::string, std::string>> &environment)
+    TestCommandResult
+    TestWorkspace::run(const std::string &executable, const std::vector<std::string> &arguments,
+                       const std::vector<std::pair<std::string, std::string>> &environment)
     {
         std::filesystem::path outPath =
             m_root / ("command-" + std::to_string(m_command++) + ".out");
@@ -70,15 +70,16 @@ namespace llmcpp::test
     }
 
     // Run llmc++.
-    CommandResult
-    Workspace::llmcpp(const std::vector<std::string> &arguments,
-                      const std::vector<std::pair<std::string, std::string>> &environment)
+    TestCommandResult
+    TestWorkspace::llmcpp(const std::vector<std::string> &arguments,
+                          const std::vector<std::pair<std::string, std::string>> &environment)
     {
         return run(LLMCPP_PATH, arguments, environment);
     }
 
     // Run llmc++ with the scripted agent.
-    CommandResult Workspace::mock(const std::string &script, std::vector<std::string> arguments)
+    TestCommandResult TestWorkspace::mock(const std::string &script,
+                                          std::vector<std::string> arguments)
     {
         std::filesystem::path log =
             m_root / (std::filesystem::path(script).stem().string() + ".log");
