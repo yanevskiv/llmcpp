@@ -324,7 +324,7 @@ if(BUILD_TESTING)
             LLMCPP_PATH="$<TARGET_FILE:llmcpp>"
             LLMCPP_AGENT_PATH="${LLMCPP_AGENT_BINARY}"
             MOCK_AGENT_PATH="${CMAKE_CURRENT_SOURCE_DIR}/agents/llmcpp-mock-agent"
-            TEST_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests"
+            TEST_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/data"
     )
     add_dependencies(llmcpp-tests llmcpp)
 
