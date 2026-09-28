@@ -1,5 +1,5 @@
 /*
- * C++ file for testing generation options.
+ * C++ header for integration-test context.
  *
  * Copyright (C) 2026 Ivan Janevski
  *
@@ -18,14 +18,4 @@
  * <https://www.gnu.org/licenses/>.
  */
 
-#include "include/test_context.h"
-
-__llm__(max_attempts(12), timeout(120), model("target-model"), cache_salt("reviewed")) int limited()
-{
-    Return the configured score.
-}
-
-__llm__(no_cache) int fresh()
-{
-    Return the configured score.
-}
+#include "test_integration_score.h"

@@ -18,7 +18,7 @@
  * <https://www.gnu.org/licenses/>.
  */
 
-// Exercises the tool server through the mock agent (see json/test_tools.json).
+// Exercises the tool server through the mock agent (see json/test_integration_tools.json).
 #include <iostream>
 
 class Account {

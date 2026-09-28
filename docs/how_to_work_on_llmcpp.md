@@ -94,7 +94,7 @@ comments and naming conventions.
 - Put public and private C++ declarations under `include/llmcpp/` and matching
   definitions under `src/llmcpp/`.
 - Add end-to-end behavior to `tests/llmcpp_tests.cpp`. Fixture sources use
-  the `test_` prefix under `tests/`, with scripts in `tests/json/`
+  the `test_integration_` prefix under `tests/`, with scripts in `tests/json/`
   and fixture headers in `tests/include/`.
 - Put reusable C++ test helpers in `llmcpp::test`, with declarations under
   `include/llmcpp/test/` and implementations under `src/llmcpp/test/`.
