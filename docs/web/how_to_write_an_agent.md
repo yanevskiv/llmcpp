@@ -78,10 +78,10 @@ Stop on EOF; the compiler terminates an agent that exceeds its deadline.
 
 ## Adapt an open-weight server
 
-[The Python example](../examples/python/example18_agent.py) translates this
+[The Python example](../../examples/python/example18_agent.py) translates this
 protocol to a chat-completions server using only Python's standard library.
 Set the server URL and its served model name in
-[its configuration](../examples/json/example18_config.json), then run:
+[its configuration](../../examples/json/example18_config.json), then run:
 
 ```sh
 llmc++ -fllm-agent='python3 examples/python/example18_agent.py' \

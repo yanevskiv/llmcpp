@@ -13,6 +13,88 @@ if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
 endif()
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+include(GNUInstallDirs)
+
+# Command references are shipped with both build modes.
+install(
+    FILES docs/man/llmc++.1 docs/man/llmcpp-agent.1
+    DESTINATION "${CMAKE_INSTALL_MANDIR}/man1"
+    COMPONENT Documentation
+)
+
+# Standalone documentation builds do not configure compiler dependencies.
+option(LLMCPP_DOCS_ONLY "Configure only documentation targets" OFF)
+
+if(LLMCPP_DOCS_ONLY)
+    find_package(Doxygen REQUIRED COMPONENTS doxygen)
+    find_package(LATEX REQUIRED COMPONENTS PDFLATEX)
+    find_program(LLMCPP_MAKE_EXECUTABLE NAMES gmake make REQUIRED)
+    find_program(LLMCPP_SPHINX_EXECUTABLE NAMES sphinx-build REQUIRED)
+
+    # Keep Doxygen's version-specific preamble, but use the hitec class.
+    set(LLMCPP_LATEX_HEADER "${CMAKE_BINARY_DIR}/doxygen_header.tex")
+    execute_process(
+        COMMAND
+            "${DOXYGEN_EXECUTABLE}" -w latex
+            "${LLMCPP_LATEX_HEADER}"
+            "${CMAKE_BINARY_DIR}/doxygen_footer.tex"
+            "${CMAKE_BINARY_DIR}/doxygen_style.sty"
+        COMMAND_ERROR_IS_FATAL ANY
+    )
+    file(READ "${LLMCPP_LATEX_HEADER}" LLMCPP_LATEX_PREAMBLE)
+    string(
+        REPLACE "{article}" "{hitec}"
+        LLMCPP_LATEX_PREAMBLE "${LLMCPP_LATEX_PREAMBLE}"
+    )
+    file(WRITE "${LLMCPP_LATEX_HEADER}" "${LLMCPP_LATEX_PREAMBLE}")
+
+    set(DOXYGEN_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+    set(DOXYGEN_GENERATE_HTML NO)
+    set(DOXYGEN_GENERATE_XML YES)
+    set(DOXYGEN_GENERATE_LATEX YES)
+    set(DOXYGEN_COMPACT_LATEX YES)
+    set(DOXYGEN_CLASS_GRAPH NO)
+    set(DOXYGEN_LATEX_BATCHMODE YES)
+    set(DOXYGEN_LATEX_HEADER "${LLMCPP_LATEX_HEADER}")
+    set(DOXYGEN_LATEX_CMD_NAME "${PDFLATEX_COMPILER}")
+    set(DOXYGEN_EXTRACT_PRIVATE YES)
+    set(DOXYGEN_SOURCE_BROWSER YES)
+    set(DOXYGEN_QUIET YES)
+    doxygen_add_docs(
+        llmcpp-docs-source
+        "${CMAKE_CURRENT_SOURCE_DIR}/include/llmcpp"
+        COMMENT "Generate llmcpp reference documentation"
+    )
+    add_custom_target(
+        llmcpp-docs ALL
+        COMMAND
+            "${LLMCPP_SPHINX_EXECUTABLE}" -b html
+            -D "breathe_projects.llmcpp=${CMAKE_BINARY_DIR}/xml"
+            "${CMAKE_CURRENT_SOURCE_DIR}/docs/web"
+            "${CMAKE_BINARY_DIR}/html"
+        COMMAND "${LLMCPP_MAKE_EXECUTABLE}" -C "${CMAKE_BINARY_DIR}/latex"
+        COMMAND
+            "${CMAKE_COMMAND}" -E copy_if_different
+            "${CMAKE_BINARY_DIR}/latex/refman.pdf"
+            "${CMAKE_BINARY_DIR}/llmcpp.pdf"
+        DEPENDS llmcpp-docs-source
+        BYPRODUCTS "${CMAKE_BINARY_DIR}/llmcpp.pdf"
+        COMMENT "Build the documentation site and hitec PDF reference"
+        VERBATIM
+    )
+    install(
+        DIRECTORY "${CMAKE_BINARY_DIR}/html/"
+        DESTINATION "${CMAKE_INSTALL_DOCDIR}/html"
+        COMPONENT Documentation
+    )
+    install(
+        FILES "${CMAKE_BINARY_DIR}/llmcpp.pdf"
+        DESTINATION "${CMAKE_INSTALL_DOCDIR}"
+        COMPONENT Documentation
+    )
+    return()
+endif()
+
 include(CTest)
 
 # Vendored dependency locations.

@@ -5,13 +5,63 @@ Build and test the project once before making changes:
 ```sh
 ./do_fetch_deps.sh
 ./do_build.sh --parallel 8
-./do_test.sh
+./do_tests.sh
 ```
 
 The integration suite covers the driver, AST tools, source rewriting, cache,
 native OpenAI and Anthropic clients, and external-agent protocol. Remote
 backends are represented by deterministic local stand-ins, so tests should not
 need credentials or network access.
+
+## Build reference documentation
+
+Documentation is built separately from the compiler. `do_build_docs.sh` generates
+the HTML site in `build/docs/html` and the hitec PDF in `build/docs/llmcpp.pdf`.
+They install to
+`build/install/share/doc/llmcpp/html` and `build/install/share/doc/llmcpp/llmcpp.pdf`.
+Open `index.html` in a browser or read the PDF offline. Sphinx builds the HTML
+site with the Read the Docs theme; MyST reads the Markdown guides and Breathe
+imports the Doxygen XML reference. The PDF is the Doxygen C++ reference, not
+the tutorial site.
+
+Doxygen, TeX Live (`texlive-latex-extra` and `texlive-fonts-recommended`), and
+the Python packages in `docs/web/requirements.txt` are required for documentation and
+included in the Docker image. For a native build:
+
+```sh
+python3 -m venv build/docs-venv
+build/docs-venv/bin/pip install -r docs/web/requirements.txt
+```
+
+`do_build_docs.sh` automatically uses `build/docs-venv` when it is present;
+otherwise it uses `sphinx-build` from `PATH`.
+
+Edit guides as Markdown under `docs/web/`. The homepage's toctrees define the
+sidebar sections; the tutorials form a numbered sequence, while how-tos remain
+independent task references. Edit C++ reference documentation in the headers,
+not the generated HTML or XML.
+
+Build and install the documentation:
+
+```sh
+./do_build_docs.sh
+```
+
+Or use the development image:
+
+```sh
+./do_build_docs_in_docker.sh
+```
+
+The documentation build uses its own CMake tree under `build/docs` and does not
+require fetched compiler dependencies. Normal compiler builds do not require
+Doxygen, Sphinx, or TeX Live. Clean `build/docs` before switching its build
+between the host and Docker, since their source paths differ.
+
+The hand-written command references in `docs/man/` install to
+`build/install/share/man/man1`, even when Doxygen is disabled. Preview them with
+`man -l docs/man/llmc++.1` and `man -l docs/man/llmcpp-agent.1`, or use
+`man -M build/install/share/man llmc++` after installation.
 
 ## Build in Docker
 
@@ -50,7 +100,7 @@ pre-commit run --all-files
 ```
 
 The hooks check C++ formatting, naming, documentation, and structural rules.
-Read [STYLE.md](../STYLE.md) before adding a C++ type or moving declarations;
+Read {download}`STYLE.md <../../STYLE.md>` before adding a C++ type or moving declarations;
 it defines where headers and implementations belong as well as the required
 comments and naming conventions.
 
@@ -73,5 +123,5 @@ comments and naming conventions.
   exercises.
 
 [How the source is structured](how_the_source_is_structured.md) describes
-the component boundaries. [PLAN.md](../PLAN.md) records the prototype design
+the component boundaries. {download}`PLAN.md <../../PLAN.md>` records the prototype design
 and the remaining milestones.

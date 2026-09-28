@@ -10,6 +10,9 @@ RUN apt-get update \
         clang-tidy-19 \
         cmake \
         curl \
+        doxygen \
+        texlive-latex-extra \
+        texlive-fonts-recommended \
         git \
         libllvm19 \
         ninja-build \
@@ -19,6 +22,12 @@ RUN apt-get update \
         python3-venv \
     && ln -s /usr/bin/clang-format-19 /usr/local/bin/clang-format \
     && ln -s /usr/bin/clang-tidy-19 /usr/local/bin/clang-tidy
+
+# Install the documentation builder in its own Python environment.
+COPY docs/web/requirements.txt /tmp/llmcpp-docs-requirements.txt
+RUN python3 -m venv /opt/llmcpp-docs \
+    && /opt/llmcpp-docs/bin/pip install -r /tmp/llmcpp-docs-requirements.txt
+ENV PATH="/opt/llmcpp-docs/bin:${PATH}"
 
 # Seed the dependency volume using the project's dependency versions.
 WORKDIR /workspace

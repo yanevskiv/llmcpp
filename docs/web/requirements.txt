@@ -1,0 +1,5 @@
+sphinx>=7,<9
+sphinx-rtd-theme>=3,<4
+myst-parser>=3,<5
+breathe>=4.35,<5
+sphinxcontrib-mermaid>=1,<2

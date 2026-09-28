@@ -1,7 +1,9 @@
 # How to use driver options and caching
 
-`llmc++` accepts ordinary `clang++` arguments. Its own options control when
-generation runs, how much work an agent may do, and what gets written to disk.
+Once a function builds, the next questions are usually practical: how do you
+read its implementation, reuse it in CI, or stop an expensive generation run?
+This guide follows that workflow. `llmc++` accepts ordinary `clang++` arguments;
+its own options control generation, budgets, and output.
 
 ## Choose what the driver produces
 
