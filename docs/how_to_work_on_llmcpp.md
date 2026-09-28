@@ -11,7 +11,8 @@ Build and test the project once before making changes:
 The integration suite covers the driver, AST tools, source rewriting, cache,
 native OpenAI and Anthropic clients, and external-agent protocol. Remote
 backends are represented by deterministic local stand-ins, so tests should not
-need credentials or network access.
+need credentials or network access. Unit tests exercise individual source helpers,
+agent prompt settings, and data records without running the compiler driver.
 
 ## Build reference documentation
 
@@ -95,9 +96,13 @@ comments and naming conventions.
   definitions under `src/llmcpp/`.
 - Add end-to-end behavior to the `tests/test_integration_*.cpp` files. Give
   each case `[integration]` and a tag matching its file, such as `[driver]`.
-  Put numbered fixture sources under `tests/data/`, with scripts in
-  `tests/data/json/`, headers in `tests/data/include/`, and expected output in
-  `tests/data/expected/`.
+  Put numbered fixture sources under `tests/test_data/`, with scripts in
+  `tests/test_data/json/`, headers in `tests/test_data/include/`, and expected output in
+  `tests/test_data/expected/`.
+- Put direct component tests under `tests/unit/` and name them
+  `test_unit_<module>.cpp`. Put tests of `llmcpp::data` records under
+  `tests/unit/data/` as `test_unit_data_<record>.cpp`. Tag each case with
+  `[unit]` and its module name.
 - Use `TestWorkspace::write_fixture()` when a case needs to replace a source
   file. Keep varying modifiers and keys as placeholders in the fixture.
 - Put reusable C++ test helpers in `llmcpp::test`, with declarations under
