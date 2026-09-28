@@ -44,6 +44,15 @@ namespace llmcpp::test
          */
         const std::filesystem::path &path() const;
         /**
+         * Write a source fixture into a workspace test file.
+         * @param fixture Numbered fixture filename.
+         * @param target Workspace filename to create or replace.
+         * @param replacements Template substitutions for varying source text.
+         */
+        void
+        write_fixture(const std::string &fixture, const std::string &target,
+                      const std::vector<std::pair<std::string, std::string>> &replacements = {});
+        /**
          * Run a child command.
          * @param executable Program to execute.
          * @param arguments Command-line arguments.

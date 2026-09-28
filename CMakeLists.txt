@@ -301,7 +301,14 @@ if(BUILD_TESTING)
 
     add_executable(
         llmcpp-tests
-        tests/llmcpp_tests.cpp
+        tests/test_integration_driver.cpp
+        tests/test_integration_modifiers.cpp
+        tests/test_integration_prompts.cpp
+        tests/test_integration_cache_policy.cpp
+        tests/test_integration_cache_keys.cpp
+        tests/test_integration_generation.cpp
+        tests/test_integration_agents.cpp
+        tests/test_integration_diagnostics.cpp
         src/llmcpp/test/test_fake_anthropic_server.cpp
         src/llmcpp/test/test_fake_openai_server.cpp
         src/llmcpp/test/test_text.cpp

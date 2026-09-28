@@ -93,14 +93,18 @@ comments and naming conventions.
 
 - Put public and private C++ declarations under `include/llmcpp/` and matching
   definitions under `src/llmcpp/`.
-- Add end-to-end behavior to `tests/llmcpp_tests.cpp`. Put numbered fixture
-  sources under `tests/data/`, with scripts in `tests/data/json/`, headers in
-  `tests/data/include/`, and expected output in `tests/data/expected/`.
+- Add end-to-end behavior to the `tests/test_integration_*.cpp` files. Give
+  each case `[integration]` and a tag matching its file, such as `[driver]`.
+  Put numbered fixture sources under `tests/data/`, with scripts in
+  `tests/data/json/`, headers in `tests/data/include/`, and expected output in
+  `tests/data/expected/`.
+- Use `TestWorkspace::write_fixture()` when a case needs to replace a source
+  file. Keep varying modifiers and keys as placeholders in the fixture.
 - Put reusable C++ test helpers in `llmcpp::test`, with declarations under
   `include/llmcpp/test/` and implementations under `src/llmcpp/test/`.
   Prefix their types with `Test` and filenames with `test_`, such as
   `TestWorkspace` in `test_workspace.h` and `test_workspace.cpp`.
-  Keep `tests/llmcpp_tests.cpp` focused on Catch2 test cases.
+  Keep the `test_integration_*.cpp` files focused on Catch2 test cases.
 - Use `agents/llmcpp-mock-agent` for scripted compiler-tool
   conversations and CLI-adapter tests. Tests must not depend on an installed
   CLI, a login, or a live model.

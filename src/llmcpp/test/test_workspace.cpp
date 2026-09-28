@@ -24,6 +24,7 @@
 
 #include <atomic>
 #include <cstdlib>
+#include <fstream>
 #include <sstream>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -56,6 +57,21 @@ namespace llmcpp::test
     const std::filesystem::path &TestWorkspace::path() const
     {
         return m_root;
+    }
+
+    // Write a source fixture into a workspace test file.
+    void TestWorkspace::write_fixture(
+        const std::string &fixture, const std::string &target,
+        const std::vector<std::pair<std::string, std::string>> &replacements)
+    {
+        std::string source = read_file(m_root / fixture);
+        for (const auto &[needle, value] : replacements) {
+            for (size_t pos = 0; (pos = source.find(needle, pos)) != std::string::npos;
+                 pos += value.size()) {
+                source.replace(pos, needle.size(), value);
+            }
+        }
+        std::ofstream(m_root / target) << source;
     }
 
     // Run a child command.
