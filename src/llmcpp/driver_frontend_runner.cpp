@@ -49,6 +49,7 @@ namespace llmcpp
         auto *diagsBuffer = new TextDiagnosticBuffer();
         DiagnosticsEngine diags(diagId, diagOpts, diagsBuffer);
         bool success = CompilerInvocation::CreateFromArgs(ci->getInvocation(), args, diags, argv0);
+        ci->getPreprocessorOpts().addMacroDef("__LLMCPP__=1");
 
         HeaderSearchOptions &hsOpts = ci->getHeaderSearchOpts();
         if (hsOpts.UseBuiltinIncludes && hsOpts.ResourceDir.empty()) {

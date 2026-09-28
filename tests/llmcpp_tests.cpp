@@ -174,6 +174,30 @@ TEST_CASE("modifier parentheses are optional", "[generation][options]")
     CHECK(llmcpp::test::count_occurrences(source, "return score;") == 3);
 }
 
+// Verify compiler identification during preprocessing, generation, and compilation.
+TEST_CASE("compiler identification macro is defined", "[generation][options]")
+{
+    llmcpp::test::TestWorkspace work;
+    std::ofstream(work.path() / "macro.cpp") << "#if !defined(__LLMCPP__) || __LLMCPP__ != 1\n"
+                                             << "#error missing compiler identification\n"
+                                             << "#endif\n"
+                                             << "#include \"include/test_context.h\"\n"
+                                             << "__llm__ int generated() { Return the score. }\n";
+    llmcpp::test::TestCommandResult preprocess = work.llmcpp({"-E", "macro.cpp"});
+    INFO(preprocess.m_err);
+    REQUIRE(preprocess.m_status == 0);
+    llmcpp::test::TestCommandResult compile =
+        work.mock("json/test_options.json", {"-fsyntax-only", "-fno-llm-cache", "macro.cpp"});
+    INFO(compile.m_err);
+    REQUIRE(compile.m_status == 0);
+    std::ofstream(work.path() / "plain.cpp")
+        << "#ifndef __LLMCPP__\n#error missing compiler identification\n#endif\n"
+        << "static_assert(__LLMCPP__ == 1);\n";
+    llmcpp::test::TestCommandResult plain = work.llmcpp({"-fsyntax-only", "plain.cpp"});
+    INFO(plain.m_err);
+    REQUIRE(plain.m_status == 0);
+}
+
 // Enforce target limits even when command-line defaults allow more work.
 TEST_CASE("target generation budgets are enforced", "[generation][options]")
 {

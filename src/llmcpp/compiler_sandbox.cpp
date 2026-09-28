@@ -61,6 +61,7 @@ namespace llmcpp
 
         PreprocessorOptions &ppo = inv->getPreprocessorOpts();
         ppo.addMacroDef("__llm__=");
+        ppo.addMacroDef("__LLMCPP__=1");
         ppo.addRemappedFile(m_main_file,
                             llvm::MemoryBuffer::getMemBufferCopy(source, m_main_file).release());
 

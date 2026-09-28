@@ -110,6 +110,24 @@ __llm__ double sqrt(double x) {
 
 ## Options
 
+### Environment variables
+
+API credentials and endpoint variables are documented in
+[How to configure an LLM agent](docs/how_to_configure_an_llm_agent.md).
+
+| Variable | Effect |
+| --- | --- |
+| `LLMCPP_BACKEND` | Select `auto` (default), `anthropic`, `openai`, `codex`, or `claude-code`. Automatic selection tries Anthropic, OpenAI, Codex, then Claude Code. |
+| `LLMCPP_AGENT` | Run a custom external agent command; overridden by `-fllm-agent`. |
+| `LLMCPP_MODEL` | Set the default model; overridden by `-fllm-model` and per-function `model(...)`. |
+| `LLMCPP_EFFORT` | Set reasoning effort for the Codex and Claude Code adapters; default `medium`. |
+| `LLMCPP_CODEX` | Choose the Codex executable; default `codex`. |
+| `LLMCPP_CLAUDE` | Choose the Claude Code executable; default `claude`. |
+| `LLMCPP_VERBOSE` | Enable Python adapter diagnostics when nonempty; also set by `-fllm-verbose`. |
+| `LLMCPP_DEPS_DIR` | Choose where `do_fetch_deps.sh` downloads dependencies; CMake still expects them under the project's `deps/`. |
+| `LLMCPP_MOCK_SCRIPT` | Select the JSON script for `agents/llmcpp-mock-agent`; used for testing. |
+| `LLMCPP_MOCK_LOG` | Choose where the mock agent appends its tool-call log. |
+
 ### Command line
 
 | Option | Effect |
@@ -134,33 +152,13 @@ __llm__ double sqrt(double x) {
 | `-fllm-transcript=<file>` | Append generation, tool, and outcome events to a JSONL transcript. |
 | `--llm` | Write rewritten `<name>.llm.cpp` source and stop instead of compiling it. |
 
-### Environment variables
+### Modifiers
 
-> [!NOTE]
-> API credentials and endpoint variables are documented in
-> [How to configure an LLM agent](docs/how_to_configure_an_llm_agent.md).
-
-| Variable | Effect |
-| --- | --- |
-| `LLMCPP_BACKEND` | Select `auto` (default), `anthropic`, `openai`, `codex`, or `claude-code`. Automatic selection tries Anthropic, OpenAI, Codex, then Claude Code. |
-| `LLMCPP_AGENT` | Run a custom external agent command; overridden by `-fllm-agent`. |
-| `LLMCPP_MODEL` | Set the default model; overridden by `-fllm-model` and per-function `model(...)`. |
-| `LLMCPP_EFFORT` | Set reasoning effort for the Codex and Claude Code adapters; default `medium`. |
-| `LLMCPP_CODEX` | Choose the Codex executable; default `codex`. |
-| `LLMCPP_CLAUDE` | Choose the Claude Code executable; default `claude`. |
-| `LLMCPP_VERBOSE` | Enable Python adapter diagnostics when nonempty; also set by `-fllm-verbose`. |
-| `LLMCPP_DEPS_DIR` | Choose where `do_fetch_deps.sh` downloads dependencies; CMake still expects them under the project's `deps/`. |
-| `LLMCPP_MOCK_SCRIPT` | Select the JSON script for `agents/llmcpp-mock-agent`; used for testing. |
-| `LLMCPP_MOCK_LOG` | Choose where the mock agent appends its tool-call log. |
-
-### Attributes
-
-> [!NOTE]
-> Combine attributes with commas, for example
-> `__llm__(model("id"), no_cache, timeout(120))`. They override command-line
-> defaults, but cannot enable generation in offline mode. `cache` and `no_cache`
-> cannot be combined. Model names and cache salts must be nonempty quoted strings;
-> numeric limits must be positive integer literals.
+Combine attributes with commas, for example
+`__llm__(model("id"), no_cache, timeout(120))`. They override command-line
+defaults, but cannot enable generation in offline mode. `cache` and `no_cache`
+cannot be combined. Model names and cache salts must be nonempty quoted strings;
+numeric limits must be positive integer literals.
 
 | Modifier | Effect |
 | --- | --- |
@@ -170,6 +168,55 @@ __llm__ double sqrt(double x) {
 | `__llm__(cache("salt"))` | Enable caching and add a salt to this function's cache key; the string is not a filename. |
 | `__llm__(max_attempts(2))` | Override the rejected-submission limit for this function. |
 | `__llm__(timeout(120))` | Override the generation deadline in seconds for this function. |
+
+### Macros
+
+| Macro | Effect |
+| --- | --- |
+| `__LLMCPP__` | Defined as `1` when compiling or preprocessing with llmc++. Use `#ifdef __LLMCPP__` to distinguish llmc++ from other compilers. |
+
+## Technologies
+
+- **Languages**: C++17, Python 3, shell.
+- **Compiler infrastructure**: LLVM 19, Clang 19.
+- **Build and testing**: CMake, CTest, Catch2.
+- **Networking**: cpp-httplib, OpenSSL.
+- **Containers**: Docker, Buildx.
+- **Code quality**: clang-format, clang-tidy, pre-commit.
+
+## Requirements
+
+On Debian or Ubuntu x86-64 with CMake 3.20 or newer and LLVM/Clang 19 packages
+available, install the build and test prerequisites:
+
+```sh
+sudo apt update
+sudo apt install build-essential
+sudo apt install cmake
+sudo apt install python3
+sudo apt install curl
+sudo apt install ca-certificates
+```
+
+Fetch LLVM/Clang 19, OpenSSL, Catch2, and cpp-httplib locally into `deps/`:
+
+```sh
+./do_fetch_deps.sh
+```
+
+For development checks, also install Git, pre-commit, and the Clang tools:
+
+```sh
+sudo apt install git
+sudo apt install pre-commit
+sudo apt install clang-format-19
+sudo apt install clang-tidy-19
+```
+
+The check scripts expect `clang-format` and `clang-tidy` on `PATH`; if your
+distribution only provides versioned commands, add symlinks or wrappers with
+those names. Live generation also needs a configured
+[LLM backend](docs/how_to_configure_an_llm_agent.md); tests use mock agents.
 
 ## Learn more
 
