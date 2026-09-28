@@ -155,9 +155,9 @@ set(OPENSSL_SSL_LIBRARY "${LLMCPP_DEPS_LIBDIR}/libssl.so")
 set(OPENSSL_CRYPTO_LIBRARY "${LLMCPP_DEPS_LIBDIR}/libcrypto.so")
 find_package(OpenSSL REQUIRED COMPONENTS SSL Crypto)
 
-# Compiler driver.
-add_executable(
-    llmcpp
+# Compiler driver sources shared with direct unit tests.
+set(
+    LLMCPP_CORE_SOURCES
     src/llmcpp/agent_anthropic_client.cpp
     src/llmcpp/agent_openai_client.cpp
     src/llmcpp/agent_prompt.cpp
@@ -183,8 +183,8 @@ add_executable(
     src/llmcpp/generation_pass.cpp
     src/llmcpp/generation_context.cpp
     src/llmcpp/source_text.cpp
-    src/main.cpp
 )
+add_executable(llmcpp ${LLMCPP_CORE_SOURCES} src/main.cpp)
 
 set_target_properties(
     llmcpp
@@ -293,6 +293,10 @@ endif()
 
 # Integration and unit tests.
 if(BUILD_TESTING)
+    file(
+        GLOB_RECURSE LLMCPP_UNIT_TEST_SOURCES
+        CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/tests/unit/*.cpp"
+    )
     add_subdirectory(
         "${LLMCPP_CATCH2_SOURCE_DIR}"
         "${CMAKE_BINARY_DIR}/catch2"
@@ -309,12 +313,8 @@ if(BUILD_TESTING)
         tests/test_integration_generation.cpp
         tests/test_integration_agents.cpp
         tests/test_integration_diagnostics.cpp
-        tests/unit/test_unit_agent_prompt.cpp
-        tests/unit/test_unit_source_text.cpp
-        tests/unit/data/test_unit_data_generation_options.cpp
-        tests/unit/data/test_unit_data_source_edit.cpp
-        src/llmcpp/agent_prompt.cpp
-        src/llmcpp/source_text.cpp
+        ${LLMCPP_UNIT_TEST_SOURCES}
+        ${LLMCPP_CORE_SOURCES}
         src/llmcpp/test/test_fake_anthropic_server.cpp
         src/llmcpp/test/test_fake_openai_server.cpp
         src/llmcpp/test/test_text.cpp
@@ -325,19 +325,34 @@ if(BUILD_TESTING)
         PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
     )
     target_compile_features(llmcpp-tests PRIVATE cxx_std_20)
+    target_compile_options(llmcpp-tests PRIVATE -fno-rtti -Wno-unused-parameter)
     target_include_directories(llmcpp-tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include")
     target_include_directories(
         llmcpp-tests
         SYSTEM PRIVATE
             "${LLMCPP_CPPHTTPLIB_INCLUDE_DIR}"
+            "${LLMCPP_DEPS_ROOT}/usr/include/x86_64-linux-gnu"
             "${LLMCPP_LLVM_INCLUDE_DIR}"
             "${LLMCPP_LLVM_C_INCLUDE_DIR}"
+            "${LLMCPP_CLANG_INCLUDE_DIR}"
     )
-    target_link_libraries(llmcpp-tests PRIVATE Catch2::Catch2WithMain "${LLMCPP_LLVM_LIBRARY}")
+    target_link_libraries(
+        llmcpp-tests
+        PRIVATE
+            Catch2::Catch2WithMain
+            "${LLMCPP_CLANG_CPP_LIBRARY}"
+            "${LLMCPP_LLVM_LIBRARY}"
+            OpenSSL::SSL
+            OpenSSL::Crypto
+            Threads::Threads
+    )
     target_compile_definitions(
         llmcpp-tests
         PRIVATE
             LLMCPP_PATH="$<TARGET_FILE:llmcpp>"
+            LLMCPP_LLVM_VERSION="${LLMCPP_LLVM_VERSION}"
+            LLMCPP_VERSION="${PROJECT_VERSION}"
+            CPPHTTPLIB_OPENSSL_SUPPORT
             LLMCPP_AGENT_PATH="${LLMCPP_AGENT_BINARY}"
             MOCK_AGENT_PATH="${CMAKE_CURRENT_SOURCE_DIR}/agents/llmcpp-mock-agent"
             TEST_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/test_data"
