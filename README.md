@@ -205,8 +205,6 @@ sudo apt install doxygen
 sudo apt install texlive-latex-extra
 sudo apt install texlive-fonts-recommended
 sudo apt install python3-venv
-python3 -m venv build/docs-venv
-build/docs-venv/bin/pip install -r docs/web/requirements.txt
 ./do_build_docs.sh
 ```
 

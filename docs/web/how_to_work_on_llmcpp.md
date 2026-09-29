@@ -25,16 +25,11 @@ imports the Doxygen XML reference. The PDF is the Doxygen C++ reference, not
 the tutorial site.
 
 Doxygen, TeX Live (`texlive-latex-extra` and `texlive-fonts-recommended`), and
-the Python packages in `docs/web/requirements.txt` are required for documentation and
-included in the Docker image. For a native build:
-
-```sh
-python3 -m venv build/docs-venv
-build/docs-venv/bin/pip install -r docs/web/requirements.txt
-```
-
-`do_build_docs.sh` automatically uses `build/docs-venv` when it is present;
-otherwise it uses `sphinx-build` from `PATH`.
+Python's `venv` support are required for documentation and included in the
+Docker image. `do_build_docs.sh` creates a virtual environment under
+`build/out/docs_venv` and installs Sphinx and the other packages from
+`docs/web/requirements.txt`. Subsequent builds reuse the environment and check
+that its packages satisfy the requirements.
 
 Edit guides as Markdown under `docs/web/`. The homepage's toctrees define the
 sidebar sections; the tutorials form a numbered sequence, while how-tos remain
