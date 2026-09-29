@@ -1,8 +1,8 @@
 /*
  * C++ file for replacing the compiler's system instructions.
  * Compile from the project root:
- * llmc++ -fllm-system-prompt=examples/markdown/example13_prompt.md \
- *        examples/example13_system_prompt.cpp
+ * llmc++ -fllm-system-prompt=examples/markdown/13_prompt.md \
+ *        examples/13_system_prompt.cpp
  */
 
 #include <iostream>

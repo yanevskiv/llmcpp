@@ -87,26 +87,26 @@ __llm__ double sqrt(double x) {
 
 | Example | What it shows |
 | --- | --- |
-| [Hello](examples/example01_hello.cpp) | The smallest complete program. |
-| [Clamp](examples/example02_clamp.cpp) | Parameters and a return value. |
-| [Inferred square root](examples/example03_square_root.cpp) | Conventional behavior inferred from an empty prompt. |
-| [Impossible request](examples/example04_impossible_request.cpp) | Compile checks cannot establish whether a request is achievable. |
-| [Missing include](examples/example05_missing_include.cpp) | Generated bodies cannot use unavailable types. |
-| [Composed functions](examples/example06_composed_functions.cpp) | Calling one generated function from another. |
-| [Inventory reservation](examples/example07_inventory.cpp) | Reading and updating private member state. |
-| [Interval merging](examples/example08_merge_intervals.cpp) | An algorithm over a project-defined record. |
-| [Capturing lambda](examples/example09_capturing_lambda.cpp) | Using a captured value in an STL algorithm. |
-| [Shortest path](examples/example10_shortest_path.cpp) | A larger graph algorithm. |
-| [Top-k selection](examples/example11_top_k_by.cpp) | A range template with a projection. |
-| [Projected frequency table](examples/example12_projected_frequency_table.cpp) | An iterator template with a dependent return type. |
-| [System prompt](examples/example13_system_prompt.cpp) | Replacing the compiler's generation instructions. |
-| [Project rules](examples/example14_append_system_prompt.cpp) | Appending rules to the built-in instructions. |
-| [Model selection](examples/example15_model.cpp) | Choosing a model for one function. |
-| [Cache policy](examples/example16_cache_policy.cpp) | Disabling caching or naming a cache policy per function. |
-| [Generation limits](examples/example17_generation_limits.cpp) | Setting attempts and timeout for one function. |
-| [Custom Python agent](examples/example18_custom_agent.cpp) | Connecting a tool-capable local model server through the public protocol. |
-| [Transcript replay](examples/example19_transcript.cpp) | Recording and replaying compiler tool calls without contacting a model. |
-| [Agent configuration](examples/example20_agent_configuration.cpp) | Selecting a backend and its options in a JSON file. |
+| [Hello](examples/01_hello.cpp) | The smallest complete program. |
+| [Clamp](examples/02_clamp.cpp) | Parameters and a return value. |
+| [Inferred square root](examples/03_square_root.cpp) | Conventional behavior inferred from an empty prompt. |
+| [Impossible request](examples/04_impossible_request.cpp) | Compile checks cannot establish whether a request is achievable. |
+| [Missing include](examples/05_missing_include.cpp) | Generated bodies cannot use unavailable types. |
+| [Composed functions](examples/06_composed_functions.cpp) | Calling one generated function from another. |
+| [Inventory reservation](examples/07_inventory.cpp) | Reading and updating private member state. |
+| [Interval merging](examples/08_merge_intervals.cpp) | An algorithm over a project-defined record. |
+| [Capturing lambda](examples/09_capturing_lambda.cpp) | Using a captured value in an STL algorithm. |
+| [Shortest path](examples/10_shortest_path.cpp) | A larger graph algorithm. |
+| [Top-k selection](examples/11_top_k_by.cpp) | A range template with a projection. |
+| [Projected frequency table](examples/12_projected_frequency_table.cpp) | An iterator template with a dependent return type. |
+| [System prompt](examples/13_system_prompt.cpp) | Replacing the compiler's generation instructions. |
+| [Project rules](examples/14_append_system_prompt.cpp) | Appending rules to the built-in instructions. |
+| [Model selection](examples/15_model.cpp) | Choosing a model for one function. |
+| [Cache policy](examples/16_cache_policy.cpp) | Disabling caching or naming a cache policy per function. |
+| [Generation limits](examples/17_generation_limits.cpp) | Setting attempts and timeout for one function. |
+| [Custom Python agent](examples/18_custom_agent.cpp) | Connecting a tool-capable local model server through the public protocol. |
+| [Transcript replay](examples/19_transcript.cpp) | Recording and replaying compiler tool calls without contacting a model. |
+| [Agent configuration](examples/20_agent_configuration.cpp) | Selecting a backend and its options in a JSON file. |
 
 ## Options
 

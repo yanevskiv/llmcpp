@@ -3,7 +3,7 @@
  */
 
 // Example type for closed ranges.
-#include "include/example08_interval.h"
+#include "include/08_interval.h"
 
 // Standard headers for sorting, output, errors, and storage.
 #include <algorithm>

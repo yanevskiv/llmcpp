@@ -2,7 +2,7 @@
 """Adapt a chat-completions server to llmcpp's version 1 stdio protocol.
 
 The server must support OpenAI-style tools and tool-call results. Configure
-its base_url and served model name in examples/json/example18_config.json.
+its base_url and served model name in examples/json/18_config.json.
 This example uses only the Python standard library and can be adapted to a
 different server API.
 """

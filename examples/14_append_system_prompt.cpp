@@ -1,8 +1,8 @@
 /*
  * C++ file for adding project rules to the compiler's instructions.
  * Compile from the project root:
- * llmc++ -fllm-append-system-prompt=examples/markdown/example14_rules.md \
- *        examples/example14_append_system_prompt.cpp
+ * llmc++ -fllm-append-system-prompt=examples/markdown/14_rules.md \
+ *        examples/14_append_system_prompt.cpp
  */
 
 #include <iostream>

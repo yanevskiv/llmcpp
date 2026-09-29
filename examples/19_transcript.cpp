@@ -1,10 +1,10 @@
 /*
  * C++ file for recording and replaying generation without a model.
  * Record from the project root:
- * llmc++ -fllm-transcript=trace.jsonl examples/example19_transcript.cpp
+ * llmc++ -fllm-transcript=trace.jsonl examples/19_transcript.cpp
  * Replay the same task:
  * llmc++ -fllm-regenerate -fllm-agent='llmcpp-agent --replay trace.jsonl' \
- *        examples/example19_transcript.cpp
+ *        examples/19_transcript.cpp
  */
 
 #include <iostream>

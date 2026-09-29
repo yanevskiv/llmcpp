@@ -1,8 +1,8 @@
 /*
  * C++ file for configuring the bundled Python agent explicitly.
  * Compile from the project root:
- * llmc++ -fllm-agent-config=examples/json/example20_config.json \
- *        examples/example20_agent_configuration.cpp
+ * llmc++ -fllm-agent-config=examples/json/20_config.json \
+ *        examples/20_agent_configuration.cpp
  */
 
 #include <iostream>
