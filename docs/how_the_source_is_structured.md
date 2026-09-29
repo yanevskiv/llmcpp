@@ -44,4 +44,4 @@ Project-owned C++ declarations live under `include/llmcpp/`; their definitions
 live under the matching `src/llmcpp/` path. Filename prefixes group modules,
 and their declarations live directly in `llmcpp`; only the shared records in
 `data/` retain the nested `llmcpp::data` namespace. The detailed naming and
-formatting rules are in {download}`STYLE.md <../../STYLE.md>`.
+formatting rules are in [STYLE.md](../STYLE.md).

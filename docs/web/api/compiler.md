@@ -2,7 +2,7 @@
 
 This is the internal C++ interface of the compiler, generated from its Doxygen
 comments. It is a contributor reference, not a stable library API. To configure
-the executable, use the how-tos or the installed `llmc++(1)` man page.
+the executable, use the installed `llmc++(1)` man page.
 
 ## DriverApp
 

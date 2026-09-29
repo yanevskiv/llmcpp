@@ -28,9 +28,9 @@ Docker image. `do_build_docs.sh` creates a virtual environment under
 `docs/web/requirements.txt`. Subsequent builds reuse the environment and check
 that its packages satisfy the requirements.
 
-Edit guides as Markdown under `docs/web/`. The homepage's toctrees define the
-sidebar sections; the tutorials form a numbered sequence, while how-tos remain
-independent task references. Edit C++ reference documentation in the headers,
+Edit website pages as Markdown under `docs/web/` and independent how-to guides
+under `docs/`. The homepage's toctrees define the sidebar sections; the tutorials
+form a numbered sequence. Edit C++ reference documentation in the headers,
 not the generated HTML or XML.
 
 Build and install the documentation:
@@ -85,7 +85,7 @@ pre-commit run --all-files
 ```
 
 The hooks check C++ formatting, naming, documentation, and structural rules.
-Read {download}`STYLE.md <../../STYLE.md>` before adding a C++ type or moving declarations;
+Read [STYLE.md](../STYLE.md) before adding a C++ type or moving declarations;
 it defines where headers and implementations belong as well as the required
 comments and naming conventions.
 
@@ -108,5 +108,5 @@ comments and naming conventions.
   exercises.
 
 [How the source is structured](how_the_source_is_structured.md) describes
-the component boundaries. {download}`PLAN.md <../../PLAN.md>` records the prototype design
+the component boundaries. [PLAN.md](../PLAN.md) records the prototype design
 and the remaining milestones.

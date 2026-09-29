@@ -17,8 +17,7 @@ sudo apt install curl
 sudo apt install ca-certificates
 ```
 
-For now, we will use the native build. If you prefer a container, follow
-[How to work on llmcpp](../how_to_work_on_llmcpp.md#build-in-docker) instead.
+For now, we will use the native build.
 
 ## Build and install
 
@@ -48,7 +47,6 @@ export OPENAI_API_KEY=your-api-key
 ```
 
 Choose one of these setups, not both. Generation sends instructions and requested
-compiler context to that backend and may incur usage charges. Other choices
-are covered in [How to configure an LLM agent](../how_to_configure_an_llm_agent.md).
+compiler context to that backend and may incur usage charges.
 
 The compiler is ready. Next, [generate your first function](generate_your_first_function.md).
