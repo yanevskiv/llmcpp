@@ -202,13 +202,9 @@ To build documentation separately, install its tools:
 
 ```sh
 sudo apt install doxygen
-sudo apt install texlive-latex-extra
-sudo apt install texlive-fonts-recommended
 sudo apt install python3-venv
 ./do_build_docs.sh
 ```
-
-Alternatively, run `./do_build_docs_in_docker.sh` with the development image.
 
 Fetch LLVM/Clang 19, OpenSSL, Catch2, and cpp-httplib locally into `deps/`:
 
