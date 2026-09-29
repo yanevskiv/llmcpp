@@ -10,6 +10,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/JSON.h"
 #include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/Path.h"
 
 // Standard header for environment defaults.
 #include <cstdlib>
@@ -38,6 +39,23 @@ namespace llmcpp
             if (handled.back() && !error.empty()) {
                 valid = false;
             }
+        }
+
+        llvm::StringRef output;
+        for (unsigned index = 0; index < args.size(); ++index) {
+            llvm::StringRef arg = args[index];
+            if (handled[index]) {
+                continue;
+            }
+            if (arg == "-o" && index + 1 < args.size()) {
+                output = args[++index];
+            } else if (arg.starts_with("-o") && arg.size() > 2) {
+                output = arg.drop_front(2);
+            }
+        }
+        llvm::StringRef extension = llvm::sys::path::extension(output);
+        if (extension == ".cpp" || extension == ".cc" || extension == ".cxx") {
+            m_options.m_emit_source = true;
         }
 
         for (unsigned index = 0; index < args.size(); ++index) {

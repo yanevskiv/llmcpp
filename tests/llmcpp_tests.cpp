@@ -316,6 +316,35 @@ TEST_CASE("generated sources compile and cache reproducibly", "[generation][cach
                                  {"cannot specify -o when generating multiple output files"});
 }
 
+// Verify that C++ output suffixes select generated-source mode.
+TEST_CASE("C++ output filenames imply source generation", "[generation]")
+{
+    llmcpp::test::TestWorkspace work;
+    for (const std::string &output :
+         {"main.llm.cpp", "anything.cpp", "anything.cc", "anything.cxx"}) {
+        for (bool joined : {false, true}) {
+            std::vector<std::string> args{"-fno-llm-cache", "test_all_forms.cpp"};
+            if (joined) {
+                args.push_back("-o" + output);
+            } else {
+                args.push_back("-o");
+                args.push_back(output);
+            }
+            llmcpp::test::TestCommandResult result = work.mock("json/test_all_forms.json", args);
+            INFO(result.m_err);
+            REQUIRE(result.m_status == 0);
+            std::string source = llmcpp::test::read_file(work.path() / output);
+            CHECK(source.find("__llm__") == std::string::npos);
+            CHECK(source.find("++count;") != std::string::npos);
+        }
+    }
+    llmcpp::test::TestCommandResult multiple =
+        work.llmcpp({"test_all_forms.cpp", "test_tools.cpp", "-o", "both.cpp"});
+    REQUIRE(multiple.m_status != 0);
+    llmcpp::test::check_contains(multiple.m_err,
+                                 {"cannot specify -o when generating multiple output files"});
+}
+
 // Verify semantic tools and candidate validation through the mock agent.
 TEST_CASE("agent tools expose compiler context and validate bodies", "[tools]")
 {

@@ -13,7 +13,11 @@ its own options control generation, budgets, and output.
 | `-fllm-dump` | Print each accepted generated body. |
 | `-fllm-dump-context` | Print the task and compiler context without contacting an LLM. |
 
-Without `--llm`, the rewritten translation unit continues through the normal
+An output filename ending in `.cpp`, `.cc`, or `.cxx` also selects `--llm`
+mode, for example `llmc++ main.cpp -o main.llm.cpp`.
+
+Without `--llm` or a C++ source output filename, the rewritten translation unit
+continues through the normal
 Clang compilation requested by the remaining command-line arguments.
 
 ## Control the cache

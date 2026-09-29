@@ -151,6 +151,7 @@ API credentials and endpoint variables are documented in
 | `-fllm-quiet` | Suppress normal generation progress. |
 | `-fllm-transcript=<file>` | Append generation, tool, and outcome events to a JSONL transcript. |
 | `--llm` | Write rewritten `<name>.llm.cpp` source and stop instead of compiling it. |
+| `-o <file>.cpp`, `-o <file>.cc`, `-o <file>.cxx` | Imply `--llm` and write generated source to the specified file. |
 
 ### Modifiers
 

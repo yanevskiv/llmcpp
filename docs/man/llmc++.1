@@ -73,6 +73,10 @@ Append generation, tool, and outcome events to a JSONL transcript.
 .B \-\-llm
 Write rewritten source and stop instead of compiling. Output defaults to
 <name>.llm.cpp, or <name>.llm.ii with \-E. Use \-o to select an output file.
+.TP
+.BI \-o " file"
+An output filename ending in .cpp, .cc, or .cxx implies \-\-llm.
+Other output filenames retain normal compiler behavior unless \-\-llm is passed.
 .SH ENVIRONMENT
 .TP
 .B LLMCPP_BACKEND
