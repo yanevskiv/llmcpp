@@ -1,7 +1,7 @@
 # Project Information
 
 `llmc++` is an experimental Clang-based compiler built with C++20. It and the bundled
-`llmcpp-agent` have independent versions; both currently start at 0.0.1.
+`llmcpp-agent` have independent versions; both are currently at 0.1.0.
 
 ## Tools and platforms
 
@@ -12,7 +12,7 @@ Docker provides a development environment with the same build entry point.
 
 ## License and development
 
-`llmc++` is distributed under the GNU Lesser General Public License, version 3.
+`llmc++` is distributed under the GNU General Public License, version 3 or later.
 The repository's `LICENSE.md` contains the license text. Third-party components
 retain their own licenses.
 

@@ -23,6 +23,8 @@
 ## Formatting
 
 - Follow `.clang-format` as the formatting authority.
+- Keep C++ copyright headers within 72 columns and fully justify their license
+  paragraphs, except for the final line of each paragraph.
 - Indent with four spaces; do not use tabs.
 - Indent namespaces.
 - Align access labels with the class declaration.

@@ -213,7 +213,7 @@ main file:
 - If generating any body fails, the output isn't written (as with a compile error),
   and the exit status is non-zero.
 - The output is written only if its content changed, which avoids needless rebuilds
-  under CMake build backends such as Make or Ninja.
+  under CMake.
 
 **Why not preprocessed output like nvcc's `.ii`?** Unpreprocessed output is readable,
 reviewable, and can be built with other compilers. The trade-off is that
@@ -474,8 +474,7 @@ llmcpp/
     lit/                 # clang lit tests (use mock agent)
     e2e/                 # real-LLM tests, opt-in, not in CI
   examples/              # sample programs using __llm__
-  scripts/do_build.sh       # cmake -G Ninja, clang only, Release+Assertions, lld, ccache
-                         # (install step adds the llmc++ symlink to clang)
+  do_build.sh             # configure, build, and install with CMake
 ```
 
 Build: `-DLLVM_ENABLE_PROJECTS=clang -DLLVM_TARGETS_TO_BUILD=X86 -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_ASSERTIONS=ON -DLLVM_USE_LINKER=lld -DLLVM_CCACHE_BUILD=ON`.
