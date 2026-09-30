@@ -84,6 +84,7 @@ namespace llmcpp
         if (child == 0) {
             dup2(sockets[1], STDIN_FILENO);
             dup2(sockets[1], STDOUT_FILENO);
+            setenv("LLMCPP_BACKEND", m_opts.m_backend.c_str(), 1);
             if (m_opts.m_verbose) {
                 setenv("LLMCPP_VERBOSE", "1", 1);
             }
@@ -342,6 +343,12 @@ namespace llmcpp
     bool AgentSession::generate(json::Object task, AgentToolHandler &tools,
                                 data::DataAgentOutcome &result, std::string &error)
     {
+        const char *externalAgent = std::getenv("LLMCPP_AGENT");
+        if (m_opts.m_backend.empty() && m_opts.m_agent_command.empty() &&
+            !(externalAgent && *externalAgent)) {
+            error = "select an LLM backend with -fllm-backend=<backend> or LLMCPP_BACKEND";
+            return false;
+        }
         if (use_native_anthropic(m_opts)) {
             bool completed = generate_anthropic(m_opts, std::move(task), tools, result, error);
             if (!result.m_model.empty()) {

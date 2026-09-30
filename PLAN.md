@@ -344,7 +344,7 @@ The prototype supports a native provider path and an external-agent protocol:
 - With `LLMCPP_BACKEND=anthropic`, the C++ driver calls the Anthropic Messages API
   through `cpp-httplib` and OpenSSL. The tool-use loop calls `LLMToolServer`
   directly, so Python and MCP transport are not needed.
-- With `LLMCPP_BACKEND=claude-code`, the driver starts `llmcpp-agent`, which launches
+- With `LLMCPP_BACKEND=claude`, the driver starts `llmcpp-agent`, which launches
   the `claude` CLI and bridges its MCP server back to the compiler.
 - `-fllm-agent=<command>` or `LLMCPP_AGENT` selects any compatible external agent.
   Clang starts it once per TU and talks over **stdio using JSON-RPC**.

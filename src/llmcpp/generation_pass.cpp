@@ -796,11 +796,11 @@ namespace llmcpp
             t.m_context_digest = contextDigest;
             std::string policy =
                 formatv("{0}", json::Value(agent_generation_settings(t.m_options))).str();
-            t.m_key =
-                sha256_hex(std::string(CacheVersion) + "\n" + t.m_name + "\n" + t.m_signature +
-                           "\n" + t.m_prompt_text + "\n" + policy + "\n" + t.m_cache_salt + "\n" +
-                           sha256_hex(t.m_options.m_system_prompt) + "\n" +
-                           sha256_hex(t.m_options.m_agent_config) + "\n" + contextDigest);
+            t.m_key = sha256_hex(std::string(CacheVersion) + "\n" + t.m_name + "\n" +
+                                 t.m_signature + "\n" + t.m_prompt_text + "\n" + policy + "\n" +
+                                 t.m_cache_salt + "\n" + sha256_hex(t.m_options.m_system_prompt) +
+                                 "\n" + sha256_hex(t.m_options.m_agent_config) + "\n" +
+                                 t.m_options.m_backend + "\n" + contextDigest);
         }
     }
 
@@ -830,7 +830,7 @@ namespace llmcpp
             return false;
         }
 
-        if (!m_opts.m_quiet) {
+        if (m_opts.m_verbose) {
             llvm::errs() << "llmc++: " << t.m_location << ": generating '" << t.m_name << "' ...\n";
         }
         auto start = std::chrono::steady_clock::now();
@@ -880,10 +880,12 @@ namespace llmcpp
                     : !agent.model().empty() ? agent.model()
                                              : "unknown";
         t.m_generated = true;
+        t.m_date = current_time();
+        t.m_agent_identity = agent_identity(t.m_options);
         if (t.m_options.m_use_cache) {
             write_cache(t);
         }
-        if (!m_opts.m_quiet) {
+        if (m_opts.m_verbose) {
             llvm::errs() << formatv("llmc++: {0}: generated '{1}' in {2:f1}s ({3}, "
                                     "{4} tool call{5})\n",
                                     t.m_location, t.m_name, seconds, t.m_model, out.m_tool_calls,
@@ -918,18 +920,7 @@ namespace llmcpp
                                                                  : line_indent(src, t.m_l_brace))
                                     .str();
             std::string indent = close + "    ";
-            std::string text = "\n";
-            llvm::SmallVector<StringRef, 16> promptLines;
-            StringRef(t.m_prompt_text).split(promptLines, '\n');
-            for (StringRef line : promptLines) {
-                text += indent + "//";
-                if (!line.empty()) {
-                    text += " " + line.str();
-                }
-                text += "\n";
-            }
-            text += indent + "// llmcpp: generated (model=" + t.m_model + ", key=" + t.m_key +
-                    ")\n" + reindent(t.m_code, indent) + close + "}";
+            std::string text = "\n" + reindent(annotated_body(t, true), indent) + close + "}";
             edits.push_back({t.m_l_brace + 1, t.m_r_brace + 1, std::move(text)});
         }
         return apply_edits(src, edits);
@@ -952,14 +943,108 @@ namespace llmcpp
     std::string GenerationPass::cache_path(const data::DataGenerationTarget &t) const
     {
         llvm::SmallString<256> path(cache_dir());
-        llvm::sys::path::append(path, t.m_key + ".cpp");
+        llvm::sys::path::append(path, abbreviate(t.m_key) + ".cpp");
         return std::string(path);
+    }
+
+    // Extend digest prefixes when known targets or cache entries would be ambiguous.
+    std::string GenerationPass::abbreviate(StringRef digest) const
+    {
+        size_t length = std::min<size_t>(m_opts.m_hash_abbrev, digest.size());
+        auto distinguish = [&](StringRef other) {
+            if (other == digest) {
+                return;
+            }
+            while (length < digest.size() && other.starts_with(digest.take_front(length))) {
+                ++length;
+            }
+        };
+        for (const auto &target : m_state.m_targets) {
+            distinguish(target.m_key);
+            distinguish(target.m_context_digest);
+            distinguish(sha256_hex(target.m_options.m_system_prompt));
+            distinguish(sha256_hex(target.m_options.m_agent_config));
+        }
+        std::error_code error;
+        for (llvm::sys::fs::directory_iterator entry(cache_dir(), error), end;
+             !error && entry != end; entry.increment(error)) {
+            StringRef path = entry->path();
+            if (llvm::sys::path::extension(path) != ".cpp") {
+                continue;
+            }
+            auto buffer = llvm::MemoryBuffer::getFile(path);
+            bool ownEntry =
+                buffer && (*buffer)->getBuffer().contains("// key: " + digest.str() + "\n");
+            if (!ownEntry) {
+                distinguish(llvm::sys::path::stem(path));
+            }
+            if (buffer) {
+                llvm::SmallVector<StringRef, 32> lines;
+                (*buffer)->getBuffer().split(lines, '\n');
+                for (StringRef line : lines) {
+                    if (line.consume_front("// key: ") || line.consume_front("// context: ") ||
+                        line.consume_front("// system_prompt: ") ||
+                        line.consume_front("// agent_config: ")) {
+                        distinguish(line.trim());
+                    }
+                }
+            }
+        }
+        return digest.take_front(length).str();
+    }
+
+    // Share the metadata layout between cache entries and generated source bodies.
+    std::string GenerationPass::annotated_body(const data::DataGenerationTarget &t,
+                                               bool abbreviated) const
+    {
+        auto hash = [&](StringRef digest) {
+            return abbreviated ? abbreviate(digest) : digest.str();
+        };
+        std::string body;
+        llvm::raw_string_ostream os(body);
+        os << "// version: " << CacheVersion << "\n"
+           << "// key: " << hash(t.m_key) << "\n"
+           << "// context: " << hash(t.m_context_digest) << "\n"
+           << "// system_prompt: " << hash(sha256_hex(t.m_options.m_system_prompt)) << "\n"
+           << "// policy: " << formatv("{0}", json::Value(agent_generation_settings(t.m_options)))
+           << "\n"
+           << "// cache_salt: " << formatv("{0}", json::Value(t.m_cache_salt)) << "\n"
+           << "// agent_config: " << hash(sha256_hex(t.m_options.m_agent_config)) << "\n"
+           << "// agent: " << t.m_agent_identity << "\n"
+           << "// function: " << t.m_signature << "\n"
+           << "// location: " << t.m_location << "\n"
+           << "// model: " << t.m_model << "\n"
+           << "// date: " << t.m_date << "\n"
+           << "// prompt:\n";
+        llvm::SmallVector<StringRef, 16> promptLines;
+        StringRef(t.m_prompt_text).split(promptLines, '\n');
+        for (StringRef line : promptLines) {
+            os << "//   " << line << "\n";
+        }
+        os << "// ---\n" << t.m_code;
+        if (!t.m_code.empty() && t.m_code.back() != '\n') {
+            os << "\n";
+        }
+        return body;
     }
 
     // Load a compatible generated implementation from cache.
     bool GenerationPass::read_cache(data::DataGenerationTarget &t) const
     {
-        auto buf = llvm::MemoryBuffer::getFile(cache_path(t), true);
+        std::string path = cache_path(t);
+        std::error_code error;
+        for (llvm::sys::fs::directory_iterator entry(cache_dir(), error), end;
+             !error && entry != end; entry.increment(error)) {
+            if (llvm::sys::path::extension(entry->path()) != ".cpp") {
+                continue;
+            }
+            auto candidate = llvm::MemoryBuffer::getFile(entry->path());
+            if (candidate && (*candidate)->getBuffer().contains("// key: " + t.m_key + "\n")) {
+                path = entry->path();
+                break;
+            }
+        }
+        auto buf = llvm::MemoryBuffer::getFile(path, true);
         if (!buf) {
             return false;
         }
@@ -983,6 +1068,10 @@ namespace llmcpp
         for (StringRef l : lines) {
             if (l.consume_front("// model: ")) {
                 t.m_model = l.trim().str();
+            } else if (l.consume_front("// date: ")) {
+                t.m_date = l.trim().str();
+            } else if (l.consume_front("// agent: ")) {
+                t.m_agent_identity = l.trim().str();
             }
         }
         t.m_code = content.substr(sep + separator.size()).str();
@@ -1010,30 +1099,7 @@ namespace llmcpp
         }
         {
             llvm::raw_fd_ostream os(descriptor, true);
-            os << "// llmcpp cache entry\n"
-               << "// version: " << CacheVersion << "\n"
-               << "// key: " << t.m_key << "\n"
-               << "// context: " << t.m_context_digest << "\n"
-               << "// system_prompt: " << sha256_hex(t.m_options.m_system_prompt) << "\n"
-               << "// policy: "
-               << formatv("{0}", json::Value(agent_generation_settings(t.m_options))) << "\n"
-               << "// cache_salt: " << formatv("{0}", json::Value(t.m_cache_salt)) << "\n"
-               << "// agent_config: " << sha256_hex(t.m_options.m_agent_config) << "\n"
-               << "// agent: " << agent_identity(t.m_options) << "\n"
-               << "// function: " << t.m_signature << "\n"
-               << "// location: " << t.m_location << "\n"
-               << "// model: " << t.m_model << "\n"
-               << "// date: " << current_time() << "\n"
-               << "// prompt:\n";
-            llvm::SmallVector<StringRef, 16> promptLines;
-            StringRef(t.m_prompt_text).split(promptLines, '\n');
-            for (StringRef l : promptLines) {
-                os << "//   " << l << "\n";
-            }
-            os << "// ---\n" << t.m_code;
-            if (!t.m_code.empty() && t.m_code.back() != '\n') {
-                os << "\n";
-            }
+            os << annotated_body(t, false);
             os.flush();
             if (os.has_error()) {
                 report(SourceLocation(), DiagnosticsEngine::Warning,
@@ -1048,6 +1114,18 @@ namespace llmcpp
             llvm::sys::fs::remove(temp);
             report(SourceLocation(), DiagnosticsEngine::Warning, "cannot publish cache entry: %0")
                 << ec.message();
+            return;
+        }
+        std::error_code error;
+        for (llvm::sys::fs::directory_iterator entry(dir, error), end; !error && entry != end;
+             entry.increment(error)) {
+            if (entry->path() == path || llvm::sys::path::extension(entry->path()) != ".cpp") {
+                continue;
+            }
+            auto previous = llvm::MemoryBuffer::getFile(entry->path());
+            if (previous && (*previous)->getBuffer().contains("// key: " + t.m_key + "\n")) {
+                llvm::sys::fs::remove(entry->path());
+            }
         }
     }
 

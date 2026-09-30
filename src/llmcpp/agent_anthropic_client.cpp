@@ -199,11 +199,7 @@ namespace llmcpp
             !environment("LLMCPP_AGENT").empty()) {
             return false;
         }
-        std::string backend = environment("LLMCPP_BACKEND");
-        if (backend == "anthropic") {
-            return true;
-        }
-        return (backend.empty() || backend == "auto") && !environment("ANTHROPIC_API_KEY").empty();
+        return opts.m_backend == "anthropic";
     }
 
     // Run the Messages API tool-use loop in the compiler process.

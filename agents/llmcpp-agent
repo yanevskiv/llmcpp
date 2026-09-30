@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""llmcpp-agent: the reference LLM agent for llmc++ (PLAN.md section 13).
+"""llmcpp-agent: the reference LLM agent for llmc++.
 
 llmc++ starts this program and talks newline-delimited JSON-RPC over its
 stdin/stdout. The agent is an MCP client of llmc++: while answering an
@@ -8,12 +8,11 @@ stdin/stdout. The agent is an MCP client of llmc++: while answering an
 
 Backends (LLMCPP_BACKEND):
   anthropic    The Claude Messages API. Needs ANTHROPIC_API_KEY.
+  openai       The OpenAI Responses API. Needs OPENAI_API_KEY.
   codex        `codex exec` with llmc++'s tools as an MCP server.
                Uses your Codex login.
-  claude-code  `claude -p` (Claude Code) with llmc++'s tools as an MCP server.
+  claude       `claude -p` (Claude Code) with llmc++'s tools as an MCP server.
                Uses your Claude Code login.
-  auto         (default) anthropic if ANTHROPIC_API_KEY is set, otherwise
-               codex if `codex` is on PATH, then claude-code.
 
 Environment:
   LLMCPP_MODEL    Model id or alias (anthropic default: claude-opus-5;
@@ -256,6 +255,106 @@ class AnthropicBackend:
         }
 
 
+class OpenAIBackend:
+    """Generate bodies through the Responses API and compiler tools."""
+
+    # Resolve credentials and the Responses API endpoint once per task.
+    def __init__(self, config=None):
+        config = config or {}
+        self.api_key = config.get("api_key") or os.environ["OPENAI_API_KEY"]
+        self.model = os.environ.get("LLMCPP_MODEL") or "gpt-6-astra"
+        self.base_url = (config.get("base_url") or os.environ.get(
+            "OPENAI_BASE_URL", "https://api.openai.com")).rstrip("/")
+        if not self.base_url.endswith("/v1"):
+            self.base_url += "/v1"
+        self.process = None
+
+    # Return the requested model until the API reports its actual model.
+    def model_id(self):
+        return self.model
+
+    # Retry transient failures within the generation deadline.
+    def post(self, body, deadline):
+        for attempt in range(6):
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError("OpenAI generation deadline reached")
+            request = urllib.request.Request(
+                self.base_url + "/responses",
+                data=json.dumps(body).encode(),
+                headers={
+                    "Authorization": "Bearer " + self.api_key,
+                    "Content-Type": "application/json",
+                },
+            )
+            try:
+                with urllib.request.urlopen(request, timeout=remaining) as response:
+                    return json.load(response)
+            except urllib.error.HTTPError as error:
+                detail = error.read().decode(errors="replace")
+                if error.code not in (429, 500, 502, 503, 504) or attempt == 5:
+                    raise RuntimeError("OpenAI API error %d: %s" % (error.code, detail[:500]))
+            except urllib.error.URLError as error:
+                if attempt == 5:
+                    raise RuntimeError("cannot reach the OpenAI API: %s" % error.reason)
+            delay = min(60, 2 ** (attempt + 1), max(0, deadline - time.monotonic()))
+            time.sleep(delay)
+
+    # Continue tool calls until the compiler accepts a submitted body.
+    def generate(self, conn, tools, task):
+        limits = task.get("limits", {})
+        deadline = time.monotonic() + int(limits.get("timeout_seconds", 600))
+        api_tools = [
+            {
+                "type": "function",
+                "name": tool["name"],
+                "description": tool.get("description", ""),
+                "parameters": tool.get("inputSchema", {"type": "object"}),
+                "strict": False,
+            }
+            for tool in tools
+        ]
+        inputs = task_message(task)
+        previous_id = None
+        model = self.model
+        for _ in range(int(limits.get("max_tool_calls", 60)) + 5):
+            body = {
+                "model": self.model,
+                "instructions": task["system_prompt"],
+                "tools": api_tools,
+                "input": inputs,
+                "max_output_tokens": 16000,
+            }
+            if previous_id:
+                body["previous_response_id"] = previous_id
+            response = self.post(body, deadline)
+            previous_id = response["id"]
+            model = response.get("model", model)
+            calls = [item for item in response["output"] if item.get("type") == "function_call"]
+            if not calls:
+                break
+            inputs = []
+            for call in calls:
+                arguments = json.loads(call.get("arguments", "{}"))
+                if isinstance(arguments, dict):
+                    text, is_error = conn.call_tool(call["name"], arguments)
+                else:
+                    text, is_error = "function arguments were not a JSON object", True
+                log(call["name"], "->", (text.splitlines() or [""])[0])
+                if call["name"] == "submit" and not is_error:
+                    return {"status": "ok", "model": model}
+                inputs.append({
+                    "type": "function_call_output",
+                    "call_id": call["call_id"],
+                    "output": ("[error] " if is_error else "") + (text or "(empty)"),
+                })
+        return {
+            "status": "error",
+            "model": model,
+            "message": "the model stopped without an accepted submit",
+        }
+
+
 class CodexBackend:
     """Runs `codex exec` with llmc++'s tools exposed as an MCP server."""
 
@@ -364,7 +463,7 @@ class ClaudeCodeBackend:
         self.process = None
 
     def model_id(self):
-        return self.model or "claude-code"
+        return self.model or "claude"
 
     def generate(self, conn, tools, task):
         timeout = int(task.get("limits", {}).get("timeout_seconds", 600))
@@ -544,23 +643,26 @@ def handle_mcp(client, conn, tools, state):
 
 def choose_backend(config=None):
     config = config or {}
-    choice = config.get("backend") or os.environ.get("LLMCPP_BACKEND", "auto")
-    if choice == "anthropic" or (choice == "auto"
-                                 and os.environ.get("ANTHROPIC_API_KEY")):
+    choice = os.environ.get("LLMCPP_BACKEND")
+    if not choice:
+        raise RuntimeError("select a backend with LLMCPP_BACKEND or llmc++ -fllm-backend")
+    if choice == "anthropic":
         if not (config.get("api_key") or os.environ.get("ANTHROPIC_API_KEY")):
             raise RuntimeError("LLMCPP_BACKEND=anthropic needs ANTHROPIC_API_KEY")
         return AnthropicBackend(config)
-    if choice in ("codex", "auto"):
+    if choice == "openai":
+        if not (config.get("api_key") or os.environ.get("OPENAI_API_KEY")):
+            raise RuntimeError("LLMCPP_BACKEND=openai needs OPENAI_API_KEY")
+        return OpenAIBackend(config)
+    if choice == "codex":
         codex = shutil.which(config.get("executable") or os.environ.get("LLMCPP_CODEX", "codex"))
         if codex:
             return CodexBackend(codex)
-        if choice == "codex":
-            raise RuntimeError("LLMCPP_BACKEND=codex needs the Codex CLI")
-    if choice in ("claude-code", "auto"):
+        raise RuntimeError("LLMCPP_BACKEND=codex needs the Codex CLI")
+    if choice == "claude":
         claude = shutil.which(config.get("executable") or os.environ.get("LLMCPP_CLAUDE", "claude"))
         if not claude:
-            raise RuntimeError("no LLM backend: set ANTHROPIC_API_KEY, install "
-                               "Codex, or install Claude Code")
+            raise RuntimeError("LLMCPP_BACKEND=claude needs the Claude Code CLI")
         return ClaudeCodeBackend(claude)
     raise RuntimeError("unknown LLMCPP_BACKEND '%s'" % choice)
 

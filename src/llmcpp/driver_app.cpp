@@ -164,6 +164,10 @@ namespace llmcpp
         if (!compilation || compilation->containsError()) {
             return 1;
         }
+        if (options.wants_help()) {
+            DriverOptions::print_help(llvm::outs());
+            return 0;
+        }
 
         if (options.options().m_emit_source) {
             std::vector<const Command *> jobs;

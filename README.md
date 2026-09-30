@@ -106,7 +106,7 @@ __llm__ double sqrt(double x) {
 | [Generation limits](examples/17_generation_limits.cpp) | Setting attempts and timeout for one function. |
 | [Custom Python agent](examples/18_custom_agent.cpp) | Connecting a tool-capable local model server through the public protocol. |
 | [Transcript replay](examples/19_transcript.cpp) | Recording and replaying compiler tool calls without contacting a model. |
-| [Agent configuration](examples/20_agent_configuration.cpp) | Selecting a backend and its options in a JSON file. |
+| [Agent configuration](examples/20_agent_configuration.cpp) | Configuring the selected backend with a JSON file. |
 
 ## Options
 
@@ -117,7 +117,7 @@ API credentials and endpoint variables are documented in
 
 | Variable | Effect |
 | --- | --- |
-| `LLMCPP_BACKEND` | Select `auto` (default), `anthropic`, `openai`, `codex`, or `claude-code`. Automatic selection tries Anthropic, OpenAI, Codex, then Claude Code. |
+| `LLMCPP_BACKEND` | Select `anthropic`, `openai`, `codex`, or `claude`. Required for generation unless a custom agent is supplied. |
 | `LLMCPP_AGENT` | Run a custom external agent command; overridden by `-fllm-agent`. |
 | `LLMCPP_MODEL` | Set the default model; overridden by `-fllm-model` and per-function `model(...)`. |
 | `LLMCPP_EFFORT` | Set reasoning effort for the Codex and Claude Code adapters; default `medium`. |
@@ -133,6 +133,7 @@ API credentials and endpoint variables are documented in
 | Option | Effect |
 | --- | --- |
 | `-fllm` | Accepted for compatibility; `__llm__` generation is already enabled. |
+| `-fllm-backend=<backend>` | Select `anthropic`, `openai`, `codex`, or `claude`, overriding `LLMCPP_BACKEND`. |
 | `-fllm-agent=<command>` | Run a custom external agent instead of selecting a backend. |
 | `-fllm-model=<id>` | Select a model, overriding `LLMCPP_MODEL`. |
 | `-fllm-system-prompt=<file>` | Replace the built-in system prompt with a UTF-8 file. |
@@ -140,15 +141,15 @@ API credentials and endpoint variables are documented in
 | `-fllm-agent-config=<file>` | Pass a JSON configuration object to an external agent. |
 | `-fllm-offline` | Use cached bodies only; never contact an agent. |
 | `-fllm-regenerate` | Ignore cached bodies and generate fresh ones. |
-| `-fno-llm-cache` | Disable cache reads and writes. |
+| `-fllm-no-cache` | Disable cache reads and writes. |
 | `-fllm-cache-dir=<dir>` | Choose the cache directory; defaults to `.llmcache/` beside the source. |
+| `-fllm-hash-abbrev=<n>` | Display at least `n` hash characters and use them in cache filenames (default: 7; range: 1–64). Ambiguous prefixes grow automatically. |
 | `-fllm-max-attempts=<n>` | Limit rejected submissions per body; positive integer, default `4`. |
 | `-fllm-max-tool-calls=<n>` | Limit compiler tool calls per body; positive integer, default `60`. |
 | `-fllm-timeout=<seconds>` | Set the generation deadline per body; positive integer, default `600`. |
 | `-fllm-dump` | Print accepted generated bodies. |
 | `-fllm-dump-context` | Print task and compiler context without contacting an agent. |
-| `-fllm-verbose` | Log agent tool calls and short results. |
-| `-fllm-quiet` | Suppress normal generation progress. |
+| `-fllm-verbose` | Print generation progress, agent tool calls, and short results. |
 | `-fllm-transcript=<file>` | Append generation, tool, and outcome events to a JSONL transcript. |
 | `--llm` | Write rewritten `<name>.llm.cpp` source and stop instead of compiling it. |
 | `-o <file>.cpp`, `-o <file>.cc`, `-o <file>.cxx` | Imply `--llm` and write generated source to the specified file. |
@@ -239,7 +240,6 @@ numbered tutorials, task-focused guides, and contributor API reference.
 - [How to use driver options and caching](docs/how_to_use_driver_options_and_caching.md)
 - [How the source is structured](docs/how_the_source_is_structured.md)
 - [How to work on llmcpp](docs/how_to_work_on_llmcpp.md)
-- [Prototype plan and milestones](PLAN.md)
 
 ## Author
 

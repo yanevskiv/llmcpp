@@ -35,10 +35,7 @@ namespace llmcpp
         if (const char *agent = std::getenv("LLMCPP_AGENT"); agent && *agent) {
             return agent;
         }
-        if (const char *backend = std::getenv("LLMCPP_BACKEND"); backend && *backend) {
-            return backend;
-        }
-        return "auto";
+        return opts.m_backend.empty() ? "unspecified" : opts.m_backend;
     }
 
     // Remove credential-bearing fields before recording protocol data.

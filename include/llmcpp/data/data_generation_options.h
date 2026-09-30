@@ -18,6 +18,8 @@ namespace llmcpp
         {
             /** Whether rewritten source should be emitted for compilation. */
             bool m_emit_source = false;
+            /** Explicit backend selected by the command line or environment. */
+            std::string m_backend;
             /** Command used to launch the LLM agent. */
             std::string m_agent_command;
             /** Resolved system instructions sent to every backend. */
@@ -42,14 +44,14 @@ namespace llmcpp
             bool m_use_cache = true;
             /** Directory used for generated-result cache entries. */
             std::string m_cache_dir;
+            /** Minimum number of hexadecimal characters in displayed hashes and cache filenames. */
+            unsigned m_hash_abbrev = 7;
             /** Whether generated bodies should be printed. */
             bool m_dump = false;
             /** Whether agent task context should be printed. */
             bool m_dump_context = false;
             /** Whether generation progress should be printed. */
             bool m_verbose = false;
-            /** Whether ordinary generation progress should be suppressed. */
-            bool m_quiet = false;
             /** Maximum accepted-body attempts per target. */
             unsigned m_max_attempts = 4;
             /** Maximum compiler-context tool calls per target. */

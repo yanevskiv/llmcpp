@@ -197,11 +197,7 @@ namespace llmcpp
             !environment("LLMCPP_AGENT").empty()) {
             return false;
         }
-        std::string backend = environment("LLMCPP_BACKEND");
-        if (backend == "openai") {
-            return true;
-        }
-        return (backend.empty() || backend == "auto") && !environment("OPENAI_API_KEY").empty();
+        return opts.m_backend == "openai";
     }
 
     // Run the Responses API function-calling loop in the compiler process.

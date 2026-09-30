@@ -84,7 +84,6 @@ namespace llmcpp::test
         std::filesystem::path log =
             m_root / (std::filesystem::path(script).stem().string() + ".log");
         arguments.insert(arguments.begin(), "-fllm-agent=" + std::string(MOCK_AGENT_PATH));
-        arguments.insert(arguments.begin() + 1, "-fllm-quiet");
         return run(LLMCPP_PATH, arguments,
                    {{"LLMCPP_MOCK_SCRIPT", (m_root / script).string()},
                     {"LLMCPP_MOCK_LOG", log.string()}});

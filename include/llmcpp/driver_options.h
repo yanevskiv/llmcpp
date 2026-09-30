@@ -9,6 +9,7 @@
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Support/raw_ostream.h"
 
 #include <string>
 #include <vector>
@@ -60,6 +61,16 @@ namespace llmcpp
          * @return True when `-E` was supplied.
          */
         bool wants_preprocess() const;
+        /**
+         * Report whether driver help was requested.
+         * @return True when a help option was supplied.
+         */
+        bool wants_help() const;
+        /**
+         * Print options handled by llmc++ rather than Clang.
+         * @param stream Destination for command-line help.
+         */
+        static void print_help(llvm::raw_ostream &stream);
 
     private:
         /**
@@ -92,6 +103,8 @@ namespace llmcpp
         std::string m_output_path;
         /** Whether the forwarded invocation requests preprocessing. */
         bool m_wants_preprocess = false;
+        /** Whether the caller requested driver help. */
+        bool m_wants_help = false;
         /** Whether the caller explicitly selected a Clang driver mode. */
         bool m_has_driver_mode = false;
         /** Whether the caller explicitly selected a Clang resource directory. */

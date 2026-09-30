@@ -24,6 +24,9 @@ namespace llmcpp
     {
         m_options.m_executable = std::move(executable);
         m_options.m_system_prompt = agent_system_prompt().str();
+        if (const char *backend = std::getenv("LLMCPP_BACKEND")) {
+            m_options.m_backend = backend;
+        }
         if (const char *model = std::getenv("LLMCPP_MODEL")) {
             m_options.m_model = model;
         }
@@ -72,6 +75,9 @@ namespace llmcpp
             if (arg == "-E") {
                 m_wants_preprocess = true;
             }
+            if (arg == "--help" || arg == "-help" || arg == "--help-hidden") {
+                m_wants_help = true;
+            }
             if (m_options.m_emit_source) {
                 if (arg == "-E") {
                     continue;
@@ -87,12 +93,19 @@ namespace llmcpp
             }
             m_clang_args.push_back(arg.str());
         }
-        return valid && resolve_configuration(error);
+        return valid && (m_wants_help || resolve_configuration(error));
     }
 
     // Read configuration once so every target receives the same instructions.
     bool DriverOptions::resolve_configuration(std::string &error)
     {
+        llvm::StringRef backend = m_options.m_backend;
+        if (!backend.empty() && backend != "anthropic" && backend != "openai" &&
+            backend != "codex" && backend != "claude") {
+            error = "unknown LLM backend '" + backend.str() +
+                    "'; choose anthropic, openai, codex, or claude";
+            return false;
+        }
         std::vector<std::string> files = m_options.m_append_system_prompt_files;
         if (!m_options.m_system_prompt_file.empty()) {
             m_options.m_system_prompt.clear();
@@ -178,12 +191,56 @@ namespace llmcpp
         return m_wants_preprocess;
     }
 
+    // Report whether driver help was requested.
+    bool DriverOptions::wants_help() const
+    {
+        return m_wants_help;
+    }
+
+    // Describe generation options alongside Clang's driver help.
+    void DriverOptions::print_help(llvm::raw_ostream &stream)
+    {
+        stream
+            << "\nLLMCPP OPTIONS:\n"
+               "  --llm                          Write generated C++ source and stop\n"
+               "  -o <file>.cpp|.cc|.cxx          Select generated-source mode implicitly\n"
+               "  -fllm                          Accepted for compatibility; generation is "
+               "enabled\n"
+               "  -fllm-backend=<backend>         Select anthropic, openai, codex, or claude\n"
+               "                                 Overrides LLMCPP_BACKEND\n"
+               "  -fllm-agent=<command>           Run a custom external agent\n"
+               "  -fllm-model=<id>                Override LLMCPP_MODEL\n"
+               "  -fllm-system-prompt=<file>      Replace the built-in system prompt\n"
+               "  -fllm-append-system-prompt=<file>\n"
+               "                                 Append system instructions; repeatable\n"
+               "  -fllm-agent-config=<file>       Pass a JSON configuration object to the agent\n"
+               "  -fllm-offline                   Use cached bodies only\n"
+               "  -fllm-regenerate                Ignore cached bodies and generate again\n"
+               "  -fllm-no-cache                  Disable cache reads and writes\n"
+               "  -fllm-cache-dir=<directory>     Override the source's .llmcache directory\n"
+               "  -fllm-hash-abbrev=<n>           Minimum hash length (default: 7, maximum: 64)\n"
+               "  -fllm-max-attempts=<count>      Limit rejected submissions (default: 4)\n"
+               "  -fllm-max-tool-calls=<count>    Limit compiler tool calls (default: 60)\n"
+               "  -fllm-timeout=<seconds>         Set the generation deadline (default: 600)\n"
+               "  -fllm-dump                      Print accepted generated bodies\n"
+               "  -fllm-dump-context              Print compiler context without generation\n"
+               "  -fllm-verbose                   Print generation progress and agent tool logs\n"
+               "  -fllm-transcript=<file>         Append a redacted JSONL generation transcript\n"
+               "\nGeneration requires -fllm-backend or LLMCPP_BACKEND, unless a custom agent\n"
+               "is supplied. Successful compilation is silent by default.\n";
+    }
+
     // Parse one llmc++-specific argument.
     bool DriverOptions::parse_llm_option(llvm::StringRef arg, std::string &error)
     {
         if (arg == "--llm") {
             m_options.m_emit_source = true;
         } else if (arg == "-fllm") {
+        } else if (arg.consume_front("-fllm-backend=")) {
+            m_options.m_backend = arg.str();
+            if (arg.empty()) {
+                error = "-fllm-backend requires a backend";
+            }
         } else if (arg.consume_front("-fllm-agent=")) {
             m_options.m_agent_command = arg.str();
         } else if (arg.consume_front("-fllm-system-prompt=")) {
@@ -215,18 +272,20 @@ namespace llmcpp
             m_options.m_offline = true;
         } else if (arg == "-fllm-regenerate") {
             m_options.m_regenerate = true;
-        } else if (arg == "-fno-llm-cache") {
+        } else if (arg == "-fllm-no-cache") {
             m_options.m_use_cache = false;
         } else if (arg.consume_front("-fllm-cache-dir=")) {
             m_options.m_cache_dir = arg.str();
+        } else if (arg.consume_front("-fllm-hash-abbrev=")) {
+            if (!parse_unsigned(arg, m_options.m_hash_abbrev) || m_options.m_hash_abbrev > 64) {
+                error = "invalid value for -fllm-hash-abbrev (expected 1 through 64)";
+            }
         } else if (arg == "-fllm-dump") {
             m_options.m_dump = true;
         } else if (arg == "-fllm-dump-context") {
             m_options.m_dump_context = true;
         } else if (arg == "-fllm-verbose") {
             m_options.m_verbose = true;
-        } else if (arg == "-fllm-quiet") {
-            m_options.m_quiet = true;
         } else if (arg.consume_front("-fllm-max-attempts=")) {
             if (!parse_unsigned(arg, m_options.m_max_attempts)) {
                 error = "invalid value for -fllm-max-attempts";

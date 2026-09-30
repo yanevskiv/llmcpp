@@ -23,13 +23,19 @@ Clang compilation requested by the remaining command-line arguments.
 ## Control the cache
 
 Generated bodies are stored in `.llmcache/` beside the source file by default.
+Generated functions carry the cache's metadata layout: generation policy, model,
+date, prompt, and implementation. Displayed SHA-256 hashes and cache filenames
+default to seven characters. Prefix collisions extend the abbreviation; full
+hashes remain in cache metadata for validation. Changing the abbreviation length
+does not invalidate cached bodies, including older full-length filenames.
 
 | Option | Effect |
 | --- | --- |
 | `-fllm-offline` | Require cached bodies and never contact an agent. |
 | `-fllm-regenerate` | Ignore matching entries and generate fresh bodies. |
-| `-fno-llm-cache` | Do not read or write the body cache. |
+| `-fllm-no-cache` | Do not read or write the body cache. |
 | `-fllm-cache-dir=<dir>` | Store cache entries in another directory. |
+| `-fllm-hash-abbrev=<n>` | Set the minimum displayed hash and cache filename length (default: 7; range: 1–64). Colliding prefixes grow automatically. |
 
 Commit the cache when you want reviewed generated bodies and reproducible
 offline builds. A typical CI invocation is:
@@ -39,7 +45,8 @@ llmc++ -fllm-offline main.cpp -o main
 ```
 
 Cache keys include the target name, signature, prompt, effective generation
-settings, cache salt, resolved system-prompt digest, agent configuration, and
+settings, selected backend, cache salt, resolved system-prompt digest,
+agent configuration, and
 compilation context. The context includes the main source outside prompt bodies,
 relevant language, target, and macro flags, and the contents of included headers,
 including transitive headers. This deliberately favors safe invalidation: an
@@ -56,6 +63,7 @@ regeneration. Cache metadata does not prove that a generated body is correct.
 | Option | Effect |
 | --- | --- |
 | `-fllm-agent=<command>` | Use a specific external agent command. |
+| `-fllm-backend=<backend>` | Select a backend, overriding `LLMCPP_BACKEND`. |
 | `-fllm-model=<id>` | Request a model, overriding `LLMCPP_MODEL`. |
 | `-fllm-system-prompt=<file>` | Replace the built-in instructions with a UTF-8 file. |
 | `-fllm-append-system-prompt=<file>` | Append project instructions; repeat to append several files. |
@@ -64,8 +72,8 @@ regeneration. Cache metadata does not prove that a generated body is correct.
 | `-fllm-max-tool-calls=<n>` | Limit compiler tool calls for one body. |
 | `-fllm-timeout=<seconds>` | Set the generation deadline for one body. |
 
-The command-line agent setting takes precedence over automatic backend
-selection. Environment-based backend selection is covered in
+The command-line agent setting takes precedence over backend selection.
+Use `-fllm-backend=<backend>` to override `LLMCPP_BACKEND`. Backend setup is covered in
 [Choose an LLM backend](how_to_configure_an_llm_agent.md).
 
 ## Configure one function
@@ -96,10 +104,11 @@ and has the same effect.
 
 ## Control diagnostics
 
+Successful compilation is silent by default. Warnings and errors are still reported.
+
 | Option | Effect |
 | --- | --- |
-| `-fllm-verbose` | Log agent tool calls and short results. |
-| `-fllm-quiet` | Hide normal generation progress. |
+| `-fllm-verbose` | Print generation progress, agent tool calls, and short results. |
 | `-fllm-transcript=<file>` | Append JSONL generation, tool, and outcome events. |
 
 Start with `-fllm-verbose` when a backend stops without submitting a body or a
