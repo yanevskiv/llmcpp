@@ -144,7 +144,7 @@ namespace llmcpp
          * @param target data::DataGenerationTarget receiving cached generation metadata.
          * @return Whether a compatible entry was loaded.
          */
-        bool read_cache(data::DataGenerationTarget &target) const;
+        bool read_cache(data::DataGenerationTarget &target);
         /**
          * Store a generated implementation and metadata atomically.
          *

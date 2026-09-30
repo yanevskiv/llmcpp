@@ -103,6 +103,14 @@ Use `__llm__(offline)` to require a cached body for just one function. It enable
 cache reads even with `-fllm-no-cache`, ignores `-fllm-regenerate`, and reports an
 error on a cache miss without contacting an agent. It cannot be combined with
 `no_cache`.
+Use `__llm__(key("abcdef0"))` to pin a cached implementation independently of the
+prompt, context, or backend. Supply 7 to 64 hexadecimal characters, either a full
+hash or an unambiguous prefix. Ambiguous prefixes are errors. A cache miss calls
+the agent and stores the result under the supplied key rather than the computed
+input hash. Combine it with `offline` to prohibit generation. `key` enables
+caching and cannot be combined with `no_cache`. The reused body must still compile
+in the current source; pinning a key does not guarantee that its behavior suits a
+changed prompt or signature.
 Existing bare `__llm__` modifiers remain valid. `__llm__()` is also accepted
 and has the same effect.
 

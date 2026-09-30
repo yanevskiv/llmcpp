@@ -128,6 +128,12 @@ an agent. Enable cache reads even with \-fllm\-no\-cache and ignore
 Enable caching and add a nonempty salt to the cache key, not a filename.
 Cannot be combined with no_cache.
 .TP
+.B key("hash")
+Use an explicit cache identity of 7 to 64 hexadecimal characters, or an
+unambiguous prefix of an existing identity. Reuse cached code despite changed
+generation inputs. A miss generates and saves under this key. Ambiguous prefixes
+are errors. Enable caching; cannot be combined with no_cache.
+.TP
 .B max_attempts(count)
 Override the rejected-submission limit with a positive integer literal.
 .TP
