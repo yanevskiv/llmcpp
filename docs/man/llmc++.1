@@ -116,6 +116,10 @@ Generate using driver defaults. __llm__() has the same effect.
 .B model("id")
 Override the model for one function.
 .TP
+.B backend("name")
+Override the backend for one function: anthropic, openai, codex, or claude.
+A configured custom agent still takes precedence over native API transports.
+.TP
 .B no_cache
 Disable cache reads and writes for one function.
 .TP

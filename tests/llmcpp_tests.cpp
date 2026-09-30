@@ -255,7 +255,8 @@ TEST_CASE("invalid generation configuration is diagnosed", "[options]")
     for (const std::string &options :
          {"timeout(0)", "model(2)", "cache(\"v1\"), no_cache", "timeout(1), timeout(2)",
           "unknown(1)", "offline, no_cache", "offline, offline", "offline(1)", "key(\"xyz\")",
-          "key(\"abcdef\")", "key(2)", "key(\"abcdef0\"), no_cache"}) {
+          "key(\"abcdef\")", "key(2)", "key(\"abcdef0\"), no_cache", "backend(\"auto\")",
+          "backend(\"claude-code\")", "backend(2)", "backend(\"\")"}) {
         std::ofstream(work.path() / "invalid.cpp") << "__llm__(" << options << ") int f() {}\n";
         llmcpp::test::TestCommandResult result = work.llmcpp({"-fllm-dump-context", "invalid.cpp"});
         INFO(options);
@@ -648,6 +649,28 @@ TEST_CASE("agent failures are reported", "[failures]")
     llmcpp::test::check_contains(
         result.m_err, {"LLM failed to generate a body for 'f': mock gave up",
                        "last rejected attempt", "use of undeclared identifier 'not_declared'"});
+}
+
+// Select a function's backend ahead of environment and command-line defaults.
+TEST_CASE("backend modifier overrides driver defaults", "[generation][options]")
+{
+    llmcpp::test::TestWorkspace work;
+    std::ofstream(work.path() / "backend.cpp")
+        << "__llm__(backend(\"codex\")) void generated() {}\n";
+    std::vector<std::string> args{"--llm", "-fllm-no-cache", "backend.cpp"};
+    SECTION("no driver backend") {}
+    SECTION("command line backend")
+    {
+        args.push_back("-fllm-backend=openai");
+    }
+    auto result = work.llmcpp(args, {{"LLMCPP_BACKEND", ""},
+                                     {"LLMCPP_AGENT", ""},
+                                     {"LLMCPP_CODEX", MOCK_AGENT_PATH},
+                                     {"LLMCPP_EFFORT", "high"}});
+    INFO(result.m_err);
+    REQUIRE(result.m_status == 0);
+    llmcpp::test::check_contains(llmcpp::test::read_file(work.path() / "backend.llm.cpp"),
+                                 {"// model:", "void generated()"});
 }
 
 // Verify that credentials and installed programs never select a backend.

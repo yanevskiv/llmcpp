@@ -90,6 +90,9 @@ void sort_scores(std::vector<int> &scores)
 
 The precedence is built-in defaults, then command-line settings, then target
 options. `LLMCPP_MODEL` supplies a model default before command-line parsing.
+`backend("codex")` overrides the backend for one function. Accepted names are
+`anthropic`, `openai`, `codex`, and `claude`; a configured custom agent still takes
+precedence over native API transports.
 `no_cache` disables reads and writes for one target. `cache("scores-v1")`
 enables caching and adds a salt to its key; the string is not a filename.
 These two options cannot be combined. Numeric limits must be positive integer
