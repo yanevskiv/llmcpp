@@ -99,6 +99,10 @@ The agent receives the effective model, cache policy, attempts, tool budget,
 and timeout in both `llm/generate` and `get_task`. Limits are enforced by the
 compiler. A requested model must be honored or rejected by the agent.
 Offline mode still prohibits generation, including for a `no_cache` target.
+Use `__llm__(offline)` to require a cached body for just one function. It enables
+cache reads even with `-fllm-no-cache`, ignores `-fllm-regenerate`, and reports an
+error on a cache miss without contacting an agent. It cannot be combined with
+`no_cache`.
 Existing bare `__llm__` modifiers remain valid. `__llm__()` is also accepted
 and has the same effect.
 

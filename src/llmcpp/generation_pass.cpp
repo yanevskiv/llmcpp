@@ -247,6 +247,8 @@ namespace llmcpp
                 ++i;
                 if (name == "no_cache") {
                     target.m_options.m_use_cache = false;
+                } else if (name == "offline") {
+                    target.m_options.m_offline = true;
                 } else {
                     if (i + 2 >= end || !token_is(text, tokens[i], "(") ||
                         !token_is(text, tokens[i + 2], ")")) {
@@ -297,6 +299,13 @@ namespace llmcpp
             if (seen.count("cache") && seen.count("no_cache")) {
                 error = "cache and no_cache cannot be combined";
                 return false;
+            }
+            if (seen.count("offline") && seen.count("no_cache")) {
+                error = "offline and no_cache cannot be combined";
+                return false;
+            }
+            if (seen.count("offline")) {
+                target.m_options.m_use_cache = true;
             }
             return true;
         }
@@ -814,7 +823,8 @@ namespace llmcpp
     // Generate and validate an implementation for one target.
     bool GenerationPass::generate(data::DataGenerationTarget &t)
     {
-        if (t.m_options.m_use_cache && !m_opts.m_regenerate && read_cache(t)) {
+        if (t.m_options.m_use_cache && (!m_opts.m_regenerate || t.m_options.m_offline) &&
+            read_cache(t)) {
             t.m_generated = true;
             if (m_opts.m_verbose) {
                 llvm::errs() << "llmc++: " << t.m_location << ": '" << t.m_name << "' from "
@@ -823,10 +833,10 @@ namespace llmcpp
             dump(t);
             return true;
         }
-        if (m_opts.m_offline) {
+        if (t.m_options.m_offline) {
             report(keyword_loc(t), DiagnosticsEngine::Error,
-                   "no cached body for __llm__ function '%0' (-fllm-offline)")
-                << t.m_name;
+                   "no cached body for __llm__ function '%0' (%1)")
+                << t.m_name << (m_opts.m_offline ? "-fllm-offline" : "offline");
             return false;
         }
 
