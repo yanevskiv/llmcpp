@@ -1,7 +1,7 @@
 # Project Information
 
 `llmc++` is an experimental Clang-based compiler built with C++20. It and the bundled
-`llmcpp-agent` have independent versions; both are currently at 0.1.0.
+`llmcpp-agent` have independent versions; both are currently at 1.0.0.
 
 ## Tools and platforms
 
