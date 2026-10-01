@@ -104,6 +104,8 @@ literals; model names and salts must be nonempty quoted strings.
 The agent receives the effective model, cache policy, attempts, tool budget,
 and timeout in both `llm/generate` and `get_task`. Limits are enforced by the
 compiler. A requested model must be honored or rejected by the agent.
+`max_tool_calls(20)` overrides the compiler-tool call budget for one function;
+like `max_attempts` and `timeout`, it requires a positive integer literal.
 Offline mode still prohibits generation, including for a `no_cache` target.
 Use `__llm__(offline)` to require a cached body for just one function. It enables
 cache reads even with `-fllm-no-cache`, ignores `-fllm-regenerate`, and reports an

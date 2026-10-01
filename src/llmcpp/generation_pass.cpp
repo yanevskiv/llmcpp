@@ -304,7 +304,8 @@ namespace llmcpp
                             target.m_cache_salt = string->str();
                             target.m_options.m_use_cache = true;
                         }
-                    } else if (name == "max_attempts" || name == "timeout") {
+                    } else if (name == "max_attempts" || name == "max_tool_calls" ||
+                               name == "timeout") {
                         unsigned value = 0;
                         if (literal.getAsInteger(10, value) || !value) {
                             error = "expected a positive integer for __llm__ option '" + name + "'";
@@ -312,6 +313,8 @@ namespace llmcpp
                         }
                         if (name == "max_attempts") {
                             target.m_options.m_max_attempts = value;
+                        } else if (name == "max_tool_calls") {
+                            target.m_options.m_max_tool_calls = value;
                         } else {
                             target.m_options.m_timeout_seconds = value;
                         }
