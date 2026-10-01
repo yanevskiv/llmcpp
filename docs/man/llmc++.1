@@ -120,6 +120,11 @@ Override the model for one function.
 Override the backend for one function: anthropic, openai, codex, or claude.
 A configured custom agent still takes precedence over native API transports.
 .TP
+.B agent("command")
+Override the external agent command for one function. Take precedence over
+driver agent settings and native API transports. The command participates in
+the computed cache identity.
+.TP
 .B no_cache
 Disable cache reads and writes for one function.
 .TP
