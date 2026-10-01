@@ -1,27 +1,44 @@
 # llmc++
 
-`llmc++` lets you describe what a C++ function should do instead of writing its
-body yourself. Add `__llm__` to a function, method, or lambda, then write the
-body in plain language.
+```
+ _ _                           
+| | |_ __ ___   ___  _     _   
+| | | '_ ` _ \ / __|| |_ _| |_ 
+| | | | | | | | (_|_   _|_   _|
+|_|_|_| |_| |_|\___||_|   |_|  
+```
 
-When you build the program, an LLM agent turns that description into C++. It
-can ask Clang about the declarations, types, members, and captures in scope and
-use compiler errors to correct its work. The finished body is compiled with
-stock Clang 19, so the resulting executable does not need an LLM at runtime.
+`llmc++` is a C++ compiler driver based on Clang 19 which adds an `__llm__` function modifier.
+You can add `__llm__` to a function, method or a lambda and write its body in plain language.
+It's somewhat inspired by NVIDIA's `nvcc` compiler which provides `__global__` for functions intended to be run on the GPU. 
 
-Clang can tell whether the generated body is valid C++, but it cannot tell
-whether the code does exactly what you meant. You still need to review and test
-it. If the function is a template, `llmc++` generates one body for the template
-rather than a different body for each instantiation.
+When `llmc++` encounters a function marked with an `__llm__` modifier it asks an LLM for an implementation before continuing the compilation.
+The LLM does **not** have access to the raw source code. Rather it uses Clang's compiler context to decide on the implementation.
+The LLM can ask Clang about declaration, types, members, captures and use compiler errors to correct its work.
 
-Here is a small example:
+This gives `llmc++` some unique advantages over traditional agents!
+
+Here's an example:
 
 ```cpp
-#include <vector>
+// $ llmc++ main.cpp -o main
+// $ ./main
+// int
+// short
+// std::string
+#include <iostream>
 
-__llm__ void sort_scores(std::vector<int> &scores)
+template <typename T> 
+__llm__ void print_type();
 {
-    Sort scores from highest to lowest.
+    Use std::cout to print what T is here.
+}
+
+int main()
+{
+    f<int>();
+    f<short>();
+    f<std::string>();
 }
 ```
 
@@ -34,6 +51,8 @@ Create `main.cpp`:
 
 __llm__ void greet()
 {
+    // Comments are invisible to the LLM
+    // I can call an LLM dumb and it won't affect code quality (I hope!)
     Print "Hello from llmc++!" followed by a newline.
 }
 
@@ -69,19 +88,10 @@ Compile the program and run it:
 ```sh
  $ llmc++ main.cpp -o main
  $ ./main
-Hello from llmcpp!
+Hello from llmc++!
 ```
-The code was generated at compile time, so `./main` will always print the same text.
 
-Generated functions may return values, and an empty body asks the agent to infer
-the conventional behavior from the function name and signature. Comments inside
-an `__llm__` body are ignored rather than included in its prompt:
-
-```cpp
-__llm__ double sqrt(double x) {
-    /* This comment is not visible to the agent. */
-}
-```
+The code was generated at compile time so `./main` will always print the same text.
 
 ## Examples
 
@@ -300,9 +310,6 @@ numbered tutorials, task-focused guides, and contributor API reference.
 ## Copyright
 
 Copyright (C) 2026 Ivan Janevski
-
-Starting with version 0.1.0, `llmc++` and `llmcpp-agent` are licensed under
-GPLv3 or later.
 
 `llmc++` is free software; you can redistribute it and/or modify it under the
 terms of the GNU General Public License as published by the Free Software
