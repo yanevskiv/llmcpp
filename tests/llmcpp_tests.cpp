@@ -635,6 +635,28 @@ TEST_CASE("dump modifier is scoped to one function", "[generation][diagnostics]"
     CHECK(result.m_err.find("body of 'increment'") == std::string::npos);
 }
 
+// Scope progress and tool diagnostics to targets that request verbosity.
+TEST_CASE("verbose modifier is scoped to one function", "[generation][diagnostics]")
+{
+    llmcpp::test::TestWorkspace work;
+    std::ofstream(work.path() / "diagnostics.cpp")
+        << "__llm__(verbose) int answer() { Return 42. }\n"
+        << "__llm__ int increment(int x) { Return x plus one. }\n";
+    std::vector<std::string> args{"--llm", "-fllm-cache-dir=cache", "diagnostics.cpp"};
+    auto result = work.mock("json/test_return_values.json", args);
+    INFO(result.m_err);
+    REQUIRE(result.m_status == 0);
+    llmcpp::test::check_contains(result.m_err, {"generating 'answer'", "generated 'answer'",
+                                                "tool get_task", "tool submit"});
+    CHECK(result.m_err.find("generating 'increment'") == std::string::npos);
+    CHECK(result.m_err.find("generated 'increment'") == std::string::npos);
+    args.push_back("-fllm-offline");
+    result = work.llmcpp(args);
+    REQUIRE(result.m_status == 0);
+    llmcpp::test::check_contains(result.m_err, {"'answer' from"});
+    CHECK(result.m_err.find("'increment' from") == std::string::npos);
+}
+
 // Verify that successful generation is silent unless verbose output is requested.
 TEST_CASE("successful generation is silent by default", "[generation][diagnostics]")
 {

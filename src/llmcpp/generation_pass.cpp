@@ -251,6 +251,8 @@ namespace llmcpp
                     target.m_options.m_offline = true;
                 } else if (name == "dump") {
                     target.m_options.m_dump = true;
+                } else if (name == "verbose") {
+                    target.m_options.m_verbose = true;
                 } else {
                     if (i + 2 >= end || !token_is(text, tokens[i], "(") ||
                         !token_is(text, tokens[i + 2], ")")) {
@@ -864,7 +866,7 @@ namespace llmcpp
         if (t.m_options.m_use_cache && (!m_opts.m_regenerate || t.m_options.m_offline) &&
             read_cache(t)) {
             t.m_generated = true;
-            if (m_opts.m_verbose) {
+            if (t.m_options.m_verbose) {
                 llvm::errs() << "llmc++: " << t.m_location << ": '" << t.m_name << "' from "
                              << cache_path(t) << "\n";
             }
@@ -881,7 +883,7 @@ namespace llmcpp
             return false;
         }
 
-        if (m_opts.m_verbose) {
+        if (t.m_options.m_verbose) {
             llvm::errs() << "llmc++: " << t.m_location << ": generating '" << t.m_name << "' ...\n";
         }
         auto start = std::chrono::steady_clock::now();
@@ -897,7 +899,7 @@ namespace llmcpp
         task["agent_config"] = std::move(*config);
         AgentSession agent(t.m_options);
         agent_record(t.m_options, "generation", json::Object(task));
-        if (m_opts.m_verbose) {
+        if (t.m_options.m_verbose) {
             llvm::errs() << "llmc++: system prompt " << sha256_hex(t.m_options.m_system_prompt)
                          << ", agent " << agent_identity(t.m_options) << "\n";
         }
@@ -936,7 +938,7 @@ namespace llmcpp
         if (t.m_options.m_use_cache) {
             write_cache(t);
         }
-        if (m_opts.m_verbose) {
+        if (t.m_options.m_verbose) {
             llvm::errs() << formatv("llmc++: {0}: generated '{1}' in {2:f1}s ({3}, "
                                     "{4} tool call{5})\n",
                                     t.m_location, t.m_name, seconds, t.m_model, out.m_tool_calls,
