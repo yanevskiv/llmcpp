@@ -117,6 +117,9 @@ input hash. Combine it with `offline` to prohibit generation. `key` enables
 caching and cannot be combined with `no_cache`. The reused body must still compile
 in the current source; pinning a key does not guarantee that its behavior suits a
 changed prompt or signature.
+`cache_dir("reviewed-cache")` overrides the directory for one function's cache
+reads, writes, and hash collision checks. Relative paths use the compiler's
+working directory. It does not enable caching when caching is disabled.
 Existing bare `__llm__` modifiers remain valid. `__llm__()` is also accepted
 and has the same effect.
 

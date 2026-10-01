@@ -374,6 +374,32 @@ TEST_CASE("offline modifier requires a cached body", "[generation][cache][option
     }
 }
 
+// Keep each function's cache entries in its selected directory.
+TEST_CASE("cache directory modifier is scoped to one function", "[generation][cache][options]")
+{
+    llmcpp::test::TestWorkspace work;
+    std::ofstream(work.path() / "directories.cpp")
+        << "__llm__(cache_dir(\"custom-cache\"), key(\"abcdef0123\")) int answer() { Return 42. }\n"
+        << "__llm__ int increment(int x) { Return x plus one. }\n";
+    fs::create_directory(work.path() / "custom-cache");
+    std::ofstream(work.path() / "custom-cache/abcdef0.cpp") << "occupied prefix\n";
+    std::vector<std::string> args{"--llm", "-fllm-cache-dir=default-cache", "directories.cpp"};
+    auto result = work.mock("json/test_return_values.json", args);
+    INFO(result.m_err);
+    REQUIRE(result.m_status == 0);
+    REQUIRE(fs::exists(work.path() / "custom-cache/abcdef01.cpp"));
+    CHECK(llmcpp::test::read_file(work.path() / "custom-cache/abcdef0.cpp") == "occupied prefix\n");
+    CHECK(std::distance(fs::directory_iterator(work.path() / "default-cache"),
+                        fs::directory_iterator{}) == 1);
+    args.push_back("-fllm-offline");
+    result = work.llmcpp(args);
+    INFO(result.m_err);
+    REQUIRE(result.m_status == 0);
+    std::ofstream(work.path() / "directories.cpp") << "__llm__(cache_dir(\"\")) int answer() {}\n";
+    result = work.llmcpp({"-fllm-dump-context", "directories.cpp"});
+    REQUIRE(result.m_status != 0);
+}
+
 // Pin cached implementations independently of prompts and compilation context.
 TEST_CASE("explicit cache keys pin generated bodies", "[generation][cache][options]")
 {
