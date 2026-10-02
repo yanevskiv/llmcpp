@@ -46,6 +46,7 @@ def log(*args):
         print("llmcpp-agent:", *args, file=sys.stderr, flush=True)
 
 
+# Describe the generation task and its effective settings to the model.
 def task_message(task):
     return (
         "Generate the body of the __llm__ function `%s` (%s).\n"
@@ -59,6 +60,7 @@ def task_message(task):
 class Connection:
     """JSON-RPC with llmc++ over stdin/stdout."""
 
+    # Initialize the compiler transport and pending request state.
     def __init__(self):
         self._in = sys.stdin.buffer
         self._out = sys.stdout.buffer
@@ -66,17 +68,21 @@ class Connection:
         self._next_id = 1
         self._pending = []
 
+    # Send one JSON-RPC message to the compiler.
     def send(self, message):
         self._out.write((json.dumps(message) + "\n").encode())
         self._out.flush()
 
+    # Read one compiler message or report end of input.
     def _read(self):
         line = self._in.readline()
         return json.loads(line) if line else None
 
+    # Consume deferred messages before reading more compiler input.
     def next_message(self):
         return self._pending.pop(0) if self._pending else self._read()
 
+    # Serialize requests and defer unrelated messages until the reply arrives.
     def request(self, method, params):
         with self._lock:
             request_id = "agent-%d" % self._next_id
@@ -97,6 +103,7 @@ class Connection:
                     return message.get("result", {})
                 self._pending.append(message)
 
+    # Call a compiler tool and collect its text and error status.
     def call_tool(self, name, arguments):
         result = self.request("tools/call", {
             "name": name,
@@ -114,6 +121,7 @@ class ReplayBackend:
     policy. Each tool call is checked again by the current compiler.
     """
 
+    # Group recorded generation, tool, and outcome events by task.
     def __init__(self, path):
         self.tasks = []
         self.process = None
@@ -153,6 +161,7 @@ class ReplayBackend:
 class AnthropicBackend:
     """A tool-use loop against the Messages API (no SDK needed)."""
 
+    # Resolve credentials, endpoint, and model defaults for this task.
     def __init__(self, config=None):
         config = config or {}
         self.api_key = config.get("api_key") or os.environ["ANTHROPIC_API_KEY"]
@@ -161,9 +170,11 @@ class AnthropicBackend:
             "ANTHROPIC_BASE_URL", "https://api.anthropic.com")).rstrip("/")
         self.process = None
 
+    # Return the configured model identifier.
     def model_id(self):
         return self.model
 
+    # Send a Messages API request and retry transient failures.
     def post(self, body):
         data = json.dumps(body).encode()
         for attempt in range(6):
@@ -194,6 +205,7 @@ class AnthropicBackend:
                 raise RuntimeError("cannot reach the Anthropic API: %s"
                                    % e.reason)
 
+    # Exchange model tool calls until the compiler accepts a body.
     def generate(self, conn, tools, task):
         limits = task.get("limits", {})
         max_turns = int(limits.get("max_tool_calls", 60)) + 5
@@ -356,17 +368,20 @@ class OpenAIBackend:
 
 
 class CodexBackend:
-    """Runs `codex exec` with llmc++'s tools exposed as an MCP server."""
+    """Codex CLI adapter with llmc++'s tools exposed as an MCP server."""
 
+    # Store the CLI executable and generation defaults.
     def __init__(self, codex):
         self.codex = codex
         self.model = os.environ.get("LLMCPP_MODEL")
         self.effort = os.environ.get("LLMCPP_EFFORT", "medium")
         self.process = None
 
+    # Return the requested model or the backend label.
     def model_id(self):
         return self.model or "codex"
 
+    # Run Codex with a temporary compiler-tool bridge and enforce its deadline.
     def generate(self, conn, tools, task):
         timeout = int(task.get("limits", {}).get("timeout_seconds", 600))
         state = {"accepted": False}
@@ -449,22 +464,25 @@ class CodexBackend:
 
 
 class ClaudeCodeBackend:
-    """Runs `claude -p` with llmc++'s tools exposed as an MCP server.
+    """Claude Code CLI adapter with llmc++'s tools exposed as an MCP server.
 
     Claude Code starts `llmcpp-agent --mcp-bridge <socket>` as the MCP server.
     The bridge connects back to this process, which forwards tools/call to
     llmc++ over the original stdio connection.
     """
 
+    # Store the CLI executable and generation defaults.
     def __init__(self, claude):
         self.claude = claude
         self.model = os.environ.get("LLMCPP_MODEL")
         self.effort = os.environ.get("LLMCPP_EFFORT", "medium")
         self.process = None
 
+    # Return the requested model or the backend label.
     def model_id(self):
         return self.model or "claude"
 
+    # Run Claude Code with a temporary compiler-tool bridge and enforce its deadline.
     def generate(self, conn, tools, task):
         timeout = int(task.get("limits", {}).get("timeout_seconds", 600))
         state = {"accepted": False}
@@ -548,11 +566,13 @@ class ClaudeCodeBackend:
         }
 
 
+# Bridge the CLI backend's standard streams to the agent socket.
 def mcp_bridge(socket_path):
-    """Connects a CLI backend's MCP stdio to the agent's socket."""
+    """Bidirectional transport between CLI MCP stdio and the agent socket."""
     sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     sock.connect(socket_path)
 
+    # Forward standard input and close the socket's write side at end of input.
     def upstream():
         try:
             while True:
@@ -575,8 +595,9 @@ def mcp_bridge(socket_path):
         sys.stdout.buffer.flush()
 
 
+# Dispatch each CLI MCP connection to its own worker.
 def serve_mcp(server, conn, tools, state):
-    """Serves MCP connections from CLI backends."""
+    """Threaded MCP listener for CLI backends."""
     while True:
         try:
             client, _ = server.accept()
@@ -587,15 +608,20 @@ def serve_mcp(server, conn, tools, state):
                          daemon=True).start()
 
 
+# Route MCP requests to compiler tools and track accepted submissions.
 def handle_mcp(client, conn, tools, state):
-    """Forwards one CLI backend's MCP connection to llmc++."""
+    """MCP request handling for one CLI connection.
+
+    Notifications need no reply. Compiler transport failures become tool errors
+    so the CLI backend receives a response even when the compiler disconnects.
+    """
     with client, client.makefile("rwb") as stream:
         for line in stream:
             if not line.strip():
                 continue
             message = json.loads(line)
             if "id" not in message:
-                continue  # Notifications need no answer.
+                continue
             method = message.get("method")
             params = message.get("params") or {}
             response = {
@@ -617,7 +643,7 @@ def handle_mcp(client, conn, tools, state):
             elif method == "tools/call":
                 try:
                     result = conn.request("tools/call", params)
-                except Exception as e:  # llmc++ went away
+                except Exception as e:
                     result = {
                         "content": [{
                             "type": "text",
@@ -641,6 +667,7 @@ def handle_mcp(client, conn, tools, state):
             stream.flush()
 
 
+# Validate the explicit backend selection and resolve its configuration.
 def choose_backend(config=None):
     config = config or {}
     choice = os.environ.get("LLMCPP_BACKEND")
@@ -667,6 +694,7 @@ def choose_backend(config=None):
     raise RuntimeError("unknown LLMCPP_BACKEND '%s'" % choice)
 
 
+# Select the execution mode and serve compiler generation requests.
 def main():
     if len(sys.argv) == 3 and sys.argv[1] == "--mcp-bridge":
         mcp_bridge(sys.argv[2])
@@ -675,6 +703,7 @@ def main():
     backend = None
     replay = ReplayBackend(sys.argv[2]) if len(sys.argv) == 3 and sys.argv[1] == "--replay" else None
 
+    # Stop the active backend process before exiting on termination.
     def on_term(signum, frame):
         if backend is not None and backend.process is not None:
             backend.process.kill()
