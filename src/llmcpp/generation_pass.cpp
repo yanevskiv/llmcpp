@@ -261,7 +261,7 @@ namespace llmcpp
                     }
                     StringRef literal = text.slice(tokens[i + 1].m_begin, tokens[i + 1].m_end);
                     if (name == "model" || name == "cache" || name == "key" || name == "backend" ||
-                        name == "agent" || name == "cache_dir") {
+                        name == "agent" || name == "cache_dir" || name == "system_prompt") {
                         auto value = json::parse(literal);
                         if (!value) {
                             llvm::consumeError(value.takeError());
@@ -275,6 +275,20 @@ namespace llmcpp
                         }
                         if (name == "model") {
                             target.m_options.m_model = string->str();
+                        } else if (name == "system_prompt") {
+                            auto buffer = llvm::MemoryBuffer::getFile(*string);
+                            if (!buffer) {
+                                error = "cannot read system prompt '" + string->str() +
+                                        "': " + buffer.getError().message();
+                                return false;
+                            }
+                            if (!json::isUTF8((*buffer)->getBuffer())) {
+                                error = "system prompt '" + string->str() + "' is not UTF-8";
+                                return false;
+                            }
+                            target.m_options.m_system_prompt = (*buffer)->getBuffer().str();
+                            target.m_options.m_system_prompt_file = string->str();
+                            target.m_options.m_append_system_prompt_files.clear();
                         } else if (name == "cache_dir") {
                             target.m_options.m_cache_dir = string->str();
                         } else if (name == "agent") {

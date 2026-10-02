@@ -168,6 +168,7 @@ numeric limits must be positive integer literals.
 | `__llm__(model("id"))` | Override the model for this function. |
 | `__llm__(backend("name"))` | Override the backend for this function: `anthropic`, `openai`, `codex`, or `claude`. A configured custom agent still takes precedence. |
 | `__llm__(agent("command"))` | Override the external agent command for this function; takes precedence over native backends. |
+| `__llm__(system_prompt("file"))` | Replace this function's system prompt with a UTF-8 file, excluding driver-appended instructions. Relative paths use the compiler's working directory. |
 | `__llm__(no_cache)` | Disable cache reads and writes for this function. |
 | `__llm__(offline)` | Use a cached body only for this function, even with `-fllm-regenerate`; fail on a cache miss. Cannot be combined with `no_cache`. |
 | `__llm__(key("hash"))` | Use an explicit cache identity (7 to 64 hexadecimal characters). An unambiguous prefix can select an existing body despite changed inputs; a miss generates and saves under this key. Cannot be combined with `no_cache`. |

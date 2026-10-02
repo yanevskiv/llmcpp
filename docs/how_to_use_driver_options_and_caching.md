@@ -96,6 +96,11 @@ precedence over native API transports.
 `agent("python3 my_agent.py")` overrides the external agent command for one
 function, taking precedence over both driver agent settings and native backends.
 The command participates in the computed cache identity.
+`system_prompt("instructions.md")` replaces the system prompt for one function
+with the contents of a UTF-8 file. Driver-appended instructions are not retained
+for that function. Relative paths use the compiler's working directory; missing
+or invalid UTF-8 files are errors. File contents participate in the computed
+cache identity, so edits invalidate that function's cache unless `key` pins it.
 `no_cache` disables reads and writes for one target. `cache("scores-v1")`
 enables caching and adds a salt to its key; the string is not a filename.
 These two options cannot be combined. Numeric limits must be positive integer

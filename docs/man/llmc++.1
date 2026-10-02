@@ -125,6 +125,12 @@ Override the external agent command for one function. Take precedence over
 driver agent settings and native API transports. The command participates in
 the computed cache identity.
 .TP
+.B system_prompt("file")
+Replace this function's system prompt with the contents of a UTF-8 file,
+excluding driver-appended instructions. Relative paths use the compiler's
+working directory. Missing or invalid UTF-8 files are errors. File contents
+participate in the computed cache identity.
+.TP
 .B no_cache
 Disable cache reads and writes for one function.
 .TP
