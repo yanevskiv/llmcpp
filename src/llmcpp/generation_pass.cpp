@@ -260,8 +260,9 @@ namespace llmcpp
                         return false;
                     }
                     StringRef literal = text.slice(tokens[i + 1].m_begin, tokens[i + 1].m_end);
-                    if (name == "model" || name == "cache" || name == "key" || name == "backend" ||
-                        name == "agent" || name == "cache_dir" || name == "system_prompt") {
+                    if (name == "model" || name == "cache_salt" || name == "key" ||
+                        name == "backend" || name == "agent" || name == "cache_dir" ||
+                        name == "system_prompt") {
                         auto value = json::parse(literal);
                         if (!value) {
                             llvm::consumeError(value.takeError());
@@ -343,8 +344,8 @@ namespace llmcpp
                     return false;
                 }
             }
-            if (seen.count("cache") && seen.count("no_cache")) {
-                error = "cache and no_cache cannot be combined";
+            if (seen.count("cache_salt") && seen.count("no_cache")) {
+                error = "cache_salt and no_cache cannot be combined";
                 return false;
             }
             if (seen.count("offline") && seen.count("no_cache")) {

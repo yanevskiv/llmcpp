@@ -710,7 +710,7 @@ Start with a small set:
 
 ```cpp
 __llm__(no_cache)
-__llm__(cache("stable-v1"))
+__llm__(cache_salt("stable-v1"))
 __llm__(model("claude-opus-5-5"))
 __llm__(max_attempts(2), timeout(120))
 ```
@@ -721,7 +721,7 @@ Settings resolve from lowest to highest precedence:
 built-in defaults < command-line defaults < per-target __llm__ options
 ```
 
-`no_cache` disables both reading and writing for that target. `cache("name")`
+`no_cache` disables both reading and writing for that target. `cache_salt("name")`
 is a cache-key salt, not a filename; it gives a project an explicit way to
 keep separate reviewed bodies for intentionally different policies.
 
