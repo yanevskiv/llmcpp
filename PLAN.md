@@ -395,8 +395,9 @@ the same.
 - `llmcpp-prefill`: runs the compiler over a compile database with `-fllm-collect`,
   finds cache misses, and runs the agents in parallel. Normal builds then only hit the
   cache.
-- Generation runs one at a time within a TU, but different TUs build in parallel as
-  usual.
+- Generation currently runs one at a time within a translation unit; §15 plans
+  bounded per-function concurrency. Separate build-tool invocations can already
+  compile different translation units in parallel.
 
 ### 6.4 ODR
 An `inline` or `__llm__` member function in a header is compiled in many TUs. If
@@ -747,3 +748,79 @@ fingerprint to declarations made available to the agent.
 Cache reads should validate the entry schema version, full key, and context
 fingerprint. Cache writes need unique temporary paths so simultaneous compiler
 processes cannot race on one fixed `.tmp` file.
+
+---
+
+## 15. Concurrent generation jobs
+
+Today `GenerationPass::run()` calls `generate()` for each target in source order.
+`-fllm-jobs=<n>` will bound the number of functions whose agents may generate
+concurrently. This is an LLM-session limit, not Clang's compilation job count or
+a model-provider request to parallelize one response.
+
+### 15.1 Configuration and scope
+
+- Add `-fllm-jobs=<n>` and `LLMCPP_JOBS`, both requiring a positive decimal
+  integer. Default to `1`, preserving present behavior. The command line wins
+  over the environment. Reject zero, negative, nonnumeric, and overflowing
+  values before generation starts.
+- This is an invocation-wide resource limit, so there is no `jobs(n)` modifier.
+  A target's `backend(...)`, `agent(...)`, cache, and timeout options still apply
+  independently. Do not send `jobs` to agents, include it in cache keys, or let
+  it change generated source.
+- Apply the bound to active cache-miss generation sessions, not cache hits or
+  `dump_context`. `offline` continues to fail on misses, and `regenerate` still
+  bypasses cache reads. An invocation with no `__llm__` functions starts no
+  workers.
+- Start with parallel targets within one translation unit. The driver currently
+  handles its input translation units in sequence; that keeps the bound true
+  across one invocation without a second scheduler. Ordinary build tools can
+  already run separate `llmc++` processes in parallel, so the limit is per
+  invocation, not machine-wide. Parallelizing translation units is a separate
+  driver change, not a prerequisite for this option.
+
+### 15.2 Execution model
+
+1. On the main thread, parse and validate the translation unit, collect targets,
+   resolve per-function options, assign cache identities, and handle cache hits.
+   Preserve the current source-order behavior when `jobs=1`.
+2. Put generation-required targets into a bounded worker queue in source order.
+   Give each worker its own `AgentSession`, `AgentToolServer`, and shadow compiler.
+   Refactor the current `GenerationContext::m_shadow` dependency so a tool
+   server uses its worker's compiler. Never share a mutable `CompilerSandbox`
+   between workers. Limit active workers to `min(jobs, misses)`; no unbounded
+   thread or agent creation.
+3. Serialize every operation that touches the shared Clang AST, `Sema`, source
+   manager, or diagnostics. This includes `get_task`, lookup/context tools, and
+   the Clang-facing parts of candidate validation. Keep network/process waits
+   outside that critical section so independent agents can think at the same
+   time. Audit Clang lazy reads before relaxing the lock.
+4. Workers write only their own target result and collect diagnostics locally.
+   The main thread joins workers, reports failures in source order, then rewrites
+   and validates the complete translation unit once. Never rewrite while a
+   worker can still inspect compiler context.
+
+If two targets resolve to the same cache identity, coordinate them: allow one
+producer, have the other recheck the published entry, and avoid two agents
+writing different bodies under one key. Keep the existing unique-temp-file and
+atomic-rename cache publication for separate `llmc++` processes. Decide whether
+cross-process same-key deduplication is worthwhile only after measuring it;
+atomic publication alone prevents partial entries, not duplicate API calls.
+
+### 15.3 Output, failure, and verification
+
+- Buffer `dump_code`, verbose messages, cache explanations, and transcript
+  events per target. Flush them in source order on the main thread so concurrent
+  completion does not make ordinary output nondeterministic or interleave JSONL
+  records. Include a target identity in transcript events when several
+  functions write the same file.
+- Give each target its existing independent timeout and tool-call limits. A
+  failed target prevents new work from being scheduled, but already-running
+  sessions must finish or be stopped cleanly before the compiler exits. Report
+  all collected errors in source order; never emit a partial rewritten file.
+- Test `jobs=1` against current behavior; test overlap with two deliberately
+  blocked mock agents at `jobs=2`; test that `jobs=1` never overlaps them. Cover
+  cache hits and misses, offline/regenerate/read-only combinations, duplicate
+  cache keys, shared transcript paths, multi-input invocations, worker failures,
+  and `LLMCPP_JOBS` versus command-line precedence. Assert final source and
+  diagnostics are stable regardless of worker completion order.
