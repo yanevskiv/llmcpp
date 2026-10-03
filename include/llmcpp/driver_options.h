@@ -74,6 +74,19 @@ namespace llmcpp
 
     private:
         /**
+         * Load environment defaults before command-line overrides.
+         * @param error Destination for invalid environment diagnostics.
+         * @return Whether every supplied default was valid.
+         */
+        bool parse_environment(std::string &error);
+        /**
+         * Parse a boolean option with an optional explicit value.
+         * @param arg Argument to inspect.
+         * @param error Destination for invalid boolean diagnostics.
+         * @return Whether the argument names a boolean option.
+         */
+        bool parse_boolean_option(llvm::StringRef arg, std::string &error);
+        /**
          * Resolve prompt files and agent configuration.
          * @param error Destination for file and JSON diagnostics.
          * @return Whether configuration was valid.

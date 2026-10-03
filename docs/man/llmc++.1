@@ -94,6 +94,17 @@ Write rewritten source and stop instead of compiling. Output defaults to
 An output filename ending in .cpp, .cc, or .cxx implies \-\-llm.
 Other output filenames retain normal compiler behavior unless \-\-llm is passed.
 .SH ENVIRONMENT
+Every value-taking and boolean \-fllm option accepts a matching environment
+default: replace \-fllm\- with LLMCPP_, uppercase the name, and replace hyphens
+with underscores. For example, LLMCPP_CACHE_DIR and LLMCPP_MAX_ATTEMPTS.
+Empty values are ignored. Command-line options override environment defaults;
+per-function modifiers override both. Regeneration still overrides offline mode.
+.PP
+Booleans accept 1/0, true/false, yes/no, or on/off. Boolean command-line switches
+also accept explicit values, such as \-fllm\-offline=false.
+LLMCPP_CONTEXT and LLMCPP_APPEND_PROMPT accept a single file path or a JSON
+array of paths; command-line occurrences append to these lists.
+.PP
 .TP
 .B LLMCPP_BACKEND
 Select anthropic, openai, codex, or claude. Overridden by \-fllm\-backend.
@@ -117,7 +128,7 @@ Reasoning effort for Codex and Claude Code. Default: medium.
 CLI executable names or paths. Defaults: codex and claude.
 .TP
 .B LLMCPP_VERBOSE
-Enable Python adapter diagnostics when nonempty.
+Enable driver and agent diagnostics when true.
 .SH MODIFIERS
 .TP
 .B __llm__
