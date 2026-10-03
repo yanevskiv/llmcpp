@@ -19,11 +19,15 @@ namespace llmcpp
     // Format the effective policy shared by transport and compiler tools.
     llvm::json::Object agent_generation_settings(const data::DataGenerationOptions &opts)
     {
-        return llvm::json::Object{{"model", opts.m_model},
-                                  {"cache", opts.m_use_cache ? "enabled" : "disabled"},
-                                  {"max_attempts", opts.m_max_attempts},
-                                  {"max_tool_calls", opts.m_max_tool_calls},
-                                  {"timeout_seconds", opts.m_timeout_seconds}};
+        llvm::json::Object settings{{"model", opts.m_model},
+                                    {"cache", opts.m_use_cache ? "enabled" : "disabled"},
+                                    {"max_attempts", opts.m_max_attempts},
+                                    {"max_tool_calls", opts.m_max_tool_calls},
+                                    {"timeout_seconds", opts.m_timeout_seconds}};
+        if (opts.m_max_output_tokens) {
+            settings["max_output_tokens"] = opts.m_max_output_tokens;
+        }
+        return settings;
     }
 
     // Describe the configured generation backend.

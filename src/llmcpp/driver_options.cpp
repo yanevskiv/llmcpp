@@ -106,7 +106,19 @@ namespace llmcpp
                     "'; choose anthropic, openai, codex, or claude";
             return false;
         }
-        std::vector<std::string> files = m_options.m_append_system_prompt_files;
+        for (const std::string &file : m_options.m_context_files) {
+            auto buffer = llvm::MemoryBuffer::getFile(file);
+            if (!buffer) {
+                error = "cannot read context file '" + file + "': " + buffer.getError().message();
+                return false;
+            }
+            if (!llvm::json::isUTF8((*buffer)->getBuffer())) {
+                error = "context file '" + file + "' is not UTF-8";
+                return false;
+            }
+            m_options.m_context_contents.push_back((*buffer)->getBuffer().str());
+        }
+        std::vector<std::string> files = m_options.m_append_prompt_files;
         if (!m_options.m_system_prompt_file.empty()) {
             m_options.m_system_prompt.clear();
             files.insert(files.begin(), m_options.m_system_prompt_file);
@@ -211,11 +223,15 @@ namespace llmcpp
                "  -fllm-agent=<command>           Run a custom external agent\n"
                "  -fllm-model=<id>                Override LLMCPP_MODEL\n"
                "  -fllm-system-prompt=<file>      Replace the built-in system prompt\n"
-               "  -fllm-append-system-prompt=<file>\n"
+               "  -fllm-append-prompt=<file>\n"
                "                                 Append system instructions; repeatable\n"
                "  -fllm-agent-config=<file>       Pass a JSON configuration object to the agent\n"
+               "  -fllm-context=<file>            Attach UTF-8 reference material; repeatable\n"
+               "  -fllm-cache-read-only           Read cache without writing generated bodies\n"
+               "  -fllm-explain-cache             Explain cache decisions on stderr\n"
+               "  -fllm-max-output-tokens=<n>     Limit tokens per model response\n"
                "  -fllm-offline                   Use cached bodies only\n"
-               "  -fllm-force-regenerate         Generate fresh bodies, overriding offline mode\n"
+               "  -fllm-regenerate                Generate fresh bodies, overriding offline mode\n"
                "  -fllm-no-cache                  Disable cache reads and writes\n"
                "  -fllm-cache-dir=<directory>     Override the source's .llmcache directory\n"
                "  -fllm-cache-salt=<salt>         Add a default salt to computed cache keys\n"
@@ -224,7 +240,7 @@ namespace llmcpp
                "  -fllm-max-attempts=<count>      Limit rejected submissions (default: 4)\n"
                "  -fllm-max-tool-calls=<count>    Limit compiler tool calls (default: 60)\n"
                "  -fllm-timeout=<seconds>         Set the generation deadline (default: 600)\n"
-               "  -fllm-dump                      Print accepted generated bodies\n"
+               "  -fllm-dump-code                 Print accepted generated bodies\n"
                "  -fllm-dump-context              Print compiler context without generation\n"
                "  -fllm-verbose                   Print generation progress and agent tool logs\n"
                "  -fllm-transcript=<file>         Append a redacted JSONL generation transcript\n"
@@ -250,10 +266,23 @@ namespace llmcpp
             if (arg.empty()) {
                 error = "-fllm-system-prompt requires a file";
             }
-        } else if (arg.consume_front("-fllm-append-system-prompt=")) {
-            m_options.m_append_system_prompt_files.push_back(arg.str());
+        } else if (arg.consume_front("-fllm-append-prompt=")) {
+            m_options.m_append_prompt_files.push_back(arg.str());
             if (arg.empty()) {
-                error = "-fllm-append-system-prompt requires a file";
+                error = "-fllm-append-prompt requires a file";
+            }
+        } else if (arg.consume_front("-fllm-context=")) {
+            m_options.m_context_files.push_back(arg.str());
+            if (arg.empty()) {
+                error = "-fllm-context requires a file";
+            }
+        } else if (arg == "-fllm-cache-read-only") {
+            m_options.m_cache_read_only = true;
+        } else if (arg == "-fllm-explain-cache") {
+            m_options.m_explain_cache = true;
+        } else if (arg.consume_front("-fllm-max-output-tokens=")) {
+            if (!parse_unsigned(arg, m_options.m_max_output_tokens)) {
+                error = "invalid value for -fllm-max-output-tokens";
             }
         } else if (arg.consume_front("-fllm-model=")) {
             m_options.m_model = arg.str();
@@ -272,8 +301,8 @@ namespace llmcpp
             }
         } else if (arg == "-fllm-offline") {
             m_options.m_offline = true;
-        } else if (arg == "-fllm-force-regenerate") {
-            m_options.m_force_regenerate = true;
+        } else if (arg == "-fllm-regenerate") {
+            m_options.m_regenerate = true;
         } else if (arg == "-fllm-no-cache") {
             m_options.m_use_cache = false;
         } else if (arg.consume_front("-fllm-cache-dir=")) {
@@ -291,8 +320,8 @@ namespace llmcpp
             if (!parse_unsigned(arg, m_options.m_hash_abbrev) || m_options.m_hash_abbrev > 64) {
                 error = "invalid value for -fllm-hash-abbrev (expected 1 through 64)";
             }
-        } else if (arg == "-fllm-dump") {
-            m_options.m_dump = true;
+        } else if (arg == "-fllm-dump-code") {
+            m_options.m_dump_code = true;
         } else if (arg == "-fllm-dump-context") {
             m_options.m_dump_context = true;
         } else if (arg == "-fllm-verbose") {

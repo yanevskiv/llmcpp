@@ -114,7 +114,7 @@ adapter for tool-capable local model servers.
 ## Supply instructions and configuration
 
 `-fllm-system-prompt=PROMPT.md` replaces the built-in system instructions.
-`-fllm-append-system-prompt=RULES.md` appends rules after those instructions;
+`-fllm-append-prompt=RULES.md` appends rules after those instructions;
 repeat it to append multiple files in command-line order. Prompt files must
 contain UTF-8 text. A replacement prompt should still explain the compiler
 tools and require an accepted `submit`.

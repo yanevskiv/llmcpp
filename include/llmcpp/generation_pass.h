@@ -148,6 +148,11 @@ namespace llmcpp
          * @return Whether a compatible entry was loaded.
          */
         bool read_cache(data::DataGenerationTarget &target);
+        /** Explain one cache decision when requested.
+         * @param target Function whose cache decision is being described.
+         * @param reason Explanation of the decision.
+         */
+        void explain_cache(const data::DataGenerationTarget &target, llvm::StringRef reason) const;
         /**
          * Store a generated implementation and metadata atomically.
          *
@@ -159,7 +164,7 @@ namespace llmcpp
          *
          * @param target Generated target to print.
          */
-        void dump(const data::DataGenerationTarget &target) const;
+        void dump_code(const data::DataGenerationTarget &target) const;
         /**
          * Resolve an annotation source location for a target.
          *

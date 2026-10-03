@@ -14,6 +14,7 @@
 #include <chrono>
 #include <filesystem>
 #include <fstream>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -34,8 +35,10 @@ TEST_CASE("driver help includes generation options", "[options]")
         llmcpp::test::check_contains(
             result.m_out, {"USAGE:", "LLMCPP OPTIONS:", "--llm", "-fllm-backend=", "-fllm-no-cache",
                            "-fllm-transcript=", "-fllm-verbose",
-                           "-fllm-cache-lifetime=", "-fllm-cache-salt=", "-fllm-force-regenerate"});
-        CHECK(result.m_out.find("-fllm-regenerate") == std::string::npos);
+                           "-fllm-cache-lifetime=", "-fllm-cache-salt=", "-fllm-regenerate",
+                           "-fllm-context=", "-fllm-cache-read-only", "-fllm-explain-cache",
+                           "-fllm-max-output-tokens=", "-fllm-dump-code", "-fllm-append-prompt="});
+        CHECK(result.m_out.find("-fllm-force-regenerate") == std::string::npos);
     }
 }
 
@@ -105,7 +108,7 @@ TEST_CASE("target options and prompt files reach the agent", "[generation][optio
     llmcpp::test::TestCommandResult result = work.mock(
         "json/test_options.json",
         {"--llm", "-fllm-cache-dir=cache", "-fllm-model=default-model", "-fllm-max-attempts=5",
-         "-fllm-timeout=10", "-fllm-system-prompt=prompt.md", "-fllm-append-system-prompt=rules.md",
+         "-fllm-timeout=10", "-fllm-system-prompt=prompt.md", "-fllm-append-prompt=rules.md",
          "-fllm-agent-config=config.json", "-fllm-transcript=trace.jsonl", "test_options.cpp"});
     INFO(result.m_err);
     REQUIRE(result.m_status == 0);
@@ -128,9 +131,9 @@ TEST_CASE("target options and prompt files reach the agent", "[generation][optio
     }
     CHECK(entries == 1);
     llmcpp::test::TestCommandResult replay = work.llmcpp(
-        {"--llm", "-fllm-cache-dir=cache", "-fllm-force-regenerate", "-fllm-model=default-model",
+        {"--llm", "-fllm-cache-dir=cache", "-fllm-regenerate", "-fllm-model=default-model",
          "-fllm-max-attempts=5", "-fllm-timeout=10", "-fllm-system-prompt=prompt.md",
-         "-fllm-append-system-prompt=rules.md", "-fllm-agent-config=config.json",
+         "-fllm-append-prompt=rules.md", "-fllm-agent-config=config.json",
          "-fllm-agent=" + (fs::path(LLMCPP_PATH).parent_path() / "llmcpp-agent").string() +
              " --replay trace.jsonl",
          "test_options.cpp"});
@@ -169,7 +172,7 @@ TEST_CASE("cache tracks context and system instructions", "[cache][options]")
     }
     std::vector<std::string> args{"--llm", "-fllm-offline", "-fllm-cache-dir=cache", "cached.cpp"};
     if (fs::exists(work.path() / "rules.md")) {
-        args.push_back("-fllm-append-system-prompt=rules.md");
+        args.push_back("-fllm-append-prompt=rules.md");
     }
     offline = work.llmcpp(args);
     CHECK(offline.m_status != 0);
@@ -229,8 +232,8 @@ TEST_CASE("system prompt modifier is scoped to one function", "[generation][cach
         << "__llm__(system_prompt(\"target.md\")) int answer() { Return 42. }\n"
         << "__llm__ int increment(int x) { Return x plus one. }\n";
     std::vector<std::string> args{"--llm", "-fllm-cache-dir=cache",
-                                  "-fllm-system-prompt=default.md",
-                                  "-fllm-append-system-prompt=append.md", "prompts.cpp"};
+                                  "-fllm-system-prompt=default.md", "-fllm-append-prompt=append.md",
+                                  "prompts.cpp"};
     auto result = work.mock("json/test_return_values.json", args);
     INFO(result.m_err);
     REQUIRE(result.m_status == 0);
@@ -286,8 +289,8 @@ TEST_CASE("function prompt additions configuration and transcripts", "[generatio
     std::ofstream(work.path() / "default.json") << R"({"project":"default"})";
     std::ofstream(work.path() / "target.json") << R"({"project":"target","api_key":"secret"})";
     std::ofstream(work.path() / "local.cpp")
-        << "__llm__(append_system_prompt(\"first.md\"), system_prompt(\"base.md\"), "
-           "append_system_prompt(\"second.md\"), agent_config(\"target.json\"), "
+        << "__llm__(append_prompt(\"first.md\"), system_prompt(\"base.md\"), "
+           "append_prompt(\"second.md\"), agent_config(\"target.json\"), "
            "transcript(\"target.jsonl\")) int answer() { Return 42. }\n"
         << "__llm__ int increment(int x) { Return x plus one. }\n";
     std::vector<std::string> args{"--llm",
@@ -388,12 +391,11 @@ TEST_CASE("file backed modifiers reject invalid arguments", "[diagnostics][optio
     std::ofstream(work.path() / "invalid.json") << "[]";
     std::ofstream(work.path() / "broken.json") << "{";
     std::ofstream(work.path() / "invalid.md") << char(0xff);
-    for (const char *modifier :
-         {"append_system_prompt(\"missing.md\")", "append_system_prompt(\"invalid.md\")",
-          "agent_config(\"missing.json\")", "agent_config(\"invalid.json\")",
-          "agent_config(\"broken.json\")", "transcript(\"\")", "transcript(2)",
-          "agent_config(\"\")", "append_system_prompt(\"\")", "dump_context(1)",
-          "transcript(\"a\"), transcript(\"b\")"}) {
+    for (const char *modifier : {"append_prompt(\"missing.md\")", "append_prompt(\"invalid.md\")",
+                                 "agent_config(\"missing.json\")", "agent_config(\"invalid.json\")",
+                                 "agent_config(\"broken.json\")", "transcript(\"\")",
+                                 "transcript(2)", "agent_config(\"\")", "append_prompt(\"\")",
+                                 "dump_context(1)", "transcript(\"a\"), transcript(\"b\")"}) {
         std::ofstream(work.path() / "local.cpp") << "__llm__(" << modifier << ") int answer() {}\n";
         auto result = work.llmcpp({"--llm", "local.cpp"});
         INFO(modifier);
@@ -604,6 +606,127 @@ TEST_CASE("offline modifier requires a cached body", "[generation][cache][option
     }
 }
 
+// Attach reference files separately from instructions and track their contents.
+TEST_CASE("reference context is additive and invalidates cache", "[cache][options]")
+{
+    llmcpp::test::TestWorkspace work;
+    std::ofstream(work.path() / "global.md") << "Global reference.";
+    std::ofstream(work.path() / "local.md") << "Local reference.";
+    std::ofstream(work.path() / "answer.cpp")
+        << "__llm__(context(\"local.md\"), context(\"global.md\"), max_output_tokens(512)) "
+           "int answer() { Return 42. }\n";
+    std::vector<std::string> args{"--llm", "-fllm-context=global.md", "-fllm-cache-dir=cache",
+                                  "answer.cpp"};
+    auto result = work.llmcpp({"-fllm-dump-context", "-fllm-context=global.md",
+                               "-fllm-max-output-tokens=256", "answer.cpp"});
+    INFO(result.m_err);
+    REQUIRE(result.m_status == 0);
+    llmcpp::test::check_contains(result.m_out,
+                                 {"references", "Global reference.", "Local reference.", "512"});
+    result = work.mock("json/test_return_values.json", args);
+    REQUIRE(result.m_status == 0);
+    args.push_back("-fllm-offline");
+    result = work.llmcpp(args);
+    REQUIRE(result.m_status == 0);
+    std::ofstream(work.path() / "local.md") << "Changed reference.";
+    result = work.llmcpp(args);
+    REQUIRE(result.m_status != 0);
+    llmcpp::test::check_contains(result.m_err, {"no cached body"});
+}
+
+// Preserve cache entries while explaining hits, misses, and regeneration.
+TEST_CASE("read only caching permits generation without writes", "[cache][options]")
+{
+    llmcpp::test::TestWorkspace work;
+    std::string modifiers;
+    std::vector<std::string> args{"--llm", "-fllm-cache-dir=cache", "answer.cpp"};
+    SECTION("command line")
+    {
+        args.push_back("-fllm-cache-read-only");
+        args.push_back("-fllm-explain-cache");
+    }
+    SECTION("modifiers")
+    {
+        modifiers = "cache_read_only, explain_cache";
+    }
+    std::ofstream(work.path() / "answer.cpp")
+        << "__llm__(" << modifiers << ") int answer() { Return 42. }\n";
+    auto result = work.mock("json/test_return_values.json", args);
+    INFO(result.m_err);
+    REQUIRE(result.m_status == 0);
+    llmcpp::test::check_contains(result.m_err, {"miss:", "not written: cache is read-only"});
+    CHECK_FALSE(fs::exists(work.path() / "cache"));
+    std::vector<std::string> writable{"--llm", "-fllm-cache-dir=cache", "answer.cpp"};
+    std::ofstream(work.path() / "answer.cpp")
+        << "__llm__(" << std::string(modifiers.size(), ' ') << ") int answer() { Return 42. }\n";
+    result = work.mock("json/test_return_values.json", writable);
+    REQUIRE(result.m_status == 0);
+    std::ofstream(work.path() / "answer.cpp")
+        << "__llm__(" << modifiers << ") int answer() { Return 42. }\n";
+    result = work.llmcpp(args);
+    REQUIRE(result.m_status == 0);
+    llmcpp::test::check_contains(result.m_err, {"hit:"});
+    args.push_back("-fllm-regenerate");
+    std::map<fs::path, std::string> before;
+    for (const auto &entry : fs::directory_iterator(work.path() / "cache")) {
+        before[entry.path()] = llmcpp::test::read_file(entry.path());
+    }
+    result = work.mock("json/test_return_values.json", args);
+    REQUIRE(result.m_status == 0);
+    llmcpp::test::check_contains(result.m_err, {"bypass:", "not written:"});
+    for (const auto &[path, contents] : before) {
+        CHECK(llmcpp::test::read_file(path) == contents);
+    }
+}
+
+// Reject invalid reference files and output-token limits before contacting an agent.
+TEST_CASE("reference and token options validate arguments", "[options]")
+{
+    llmcpp::test::TestWorkspace work;
+    for (const std::string &modifier :
+         {"context(\"missing.md\")", "context(\"\")", "context(3)", "max_output_tokens(0)",
+          "max_output_tokens(-1)", "max_output_tokens(\"x\")", "cache_read_only(1)",
+          "explain_cache(1)"}) {
+        std::ofstream(work.path() / "invalid.cpp")
+            << "__llm__(" << modifier << ") int answer() { Return 42. }\n";
+        auto result = work.llmcpp({"--llm", "invalid.cpp"});
+        REQUIRE(result.m_status != 0);
+        CHECK(result.m_err.find("select an LLM backend") == std::string::npos);
+    }
+    for (const char *value : {"0", "-1", "abc", ""}) {
+        auto result = work.llmcpp({std::string("-fllm-max-output-tokens=") + value, "invalid.cpp"});
+        REQUIRE(result.m_status != 0);
+        llmcpp::test::check_contains(result.m_err, {"invalid value for -fllm-max-output-tokens"});
+    }
+    auto result = work.llmcpp({"-fllm-context=missing.md", "invalid.cpp"});
+    REQUIRE(result.m_status != 0);
+    llmcpp::test::check_contains(result.m_err, {"cannot read context file"});
+    std::ofstream(work.path() / "invalid.md", std::ios::binary) << '\xff';
+    result = work.llmcpp({"-fllm-context=invalid.md", "invalid.cpp"});
+    REQUIRE(result.m_status != 0);
+    llmcpp::test::check_contains(result.m_err, {"not UTF-8"});
+    std::ofstream(work.path() / "invalid.cpp")
+        << "__llm__(context(\"invalid.md\")) int answer() { Return 42. }\n";
+    result = work.llmcpp({"--llm", "invalid.cpp"});
+    REQUIRE(result.m_status != 0);
+    llmcpp::test::check_contains(result.m_err, {"not UTF-8"});
+}
+
+// Reject token limits that CLI adapters cannot enforce instead of ignoring them.
+TEST_CASE("CLI backends reject explicit output token limits", "[options][agent]")
+{
+    llmcpp::test::TestWorkspace work;
+    for (const std::string &backend : {"codex", "claude"}) {
+        auto result = work.llmcpp({"--llm", "-fllm-no-cache", "-fllm-backend=" + backend,
+                                   "-fllm-max-output-tokens=512", "test_failure.cpp"},
+                                  {{"LLMCPP_AGENT", ""},
+                                   {"LLMCPP_CODEX", MOCK_AGENT_PATH},
+                                   {"LLMCPP_CLAUDE", MOCK_AGENT_PATH}});
+        REQUIRE(result.m_status != 0);
+        llmcpp::test::check_contains(result.m_err, {"cannot enforce max_output_tokens"});
+    }
+}
+
 // Force fresh bodies globally or per function, including in offline mode.
 TEST_CASE("force regeneration overrides cached bodies and offline mode", "[cache][options]")
 {
@@ -613,21 +736,21 @@ TEST_CASE("force regeneration overrides cached bodies and offline mode", "[cache
     SECTION("command line overrides offline modifier")
     {
         modifiers = "offline";
-        args.push_back("-fllm-force-regenerate");
+        args.push_back("-fllm-regenerate");
     }
     SECTION("modifier overrides command line offline")
     {
-        modifiers = "force_regenerate";
+        modifiers = "regenerate";
         args.push_back("-fllm-offline");
     }
     SECTION("modifier overrides offline modifier")
     {
-        modifiers = "offline, force_regenerate";
+        modifiers = "offline, regenerate";
     }
     SECTION("command line overrides command line offline")
     {
         args.push_back("-fllm-offline");
-        args.push_back("-fllm-force-regenerate");
+        args.push_back("-fllm-regenerate");
     }
     std::ofstream(work.path() / "answer.cpp")
         << "__llm__(" << modifiers << ") int answer() { Return 42. }\n";
@@ -906,7 +1029,7 @@ TEST_CASE("cache hashes abbreviate without losing identity", "[generation][cache
         conflicting.replace(keyBegin, 64, other);
         std::ofstream(cache.parent_path() / (other + ".cpp")) << conflicting;
         args.erase(args.begin() + 1);
-        args.push_back("-fllm-force-regenerate");
+        args.push_back("-fllm-regenerate");
         result = work.mock("json/test_return_values.json", args);
         INFO(result.m_err);
         REQUIRE(result.m_status == 0);
@@ -925,8 +1048,8 @@ TEST_CASE("cache hashes abbreviate without losing identity", "[generation][cache
     SECTION("an occupied prefix is not overwritten")
     {
         std::ofstream(cache) << "unrelated cache contents\n";
-        result = work.mock("json/test_return_values.json", {"--llm", "-fllm-force-regenerate",
-                                                            "-fllm-cache-dir=cache", "answer.cpp"});
+        result = work.mock("json/test_return_values.json",
+                           {"--llm", "-fllm-regenerate", "-fllm-cache-dir=cache", "answer.cpp"});
         INFO(result.m_err);
         REQUIRE(result.m_status == 0);
         CHECK(llmcpp::test::read_file(cache) == "unrelated cache contents\n");
@@ -1033,11 +1156,11 @@ TEST_CASE("value-returning and empty targets infer behavior without body comment
 }
 
 // Print only bodies whose targets request dump diagnostics.
-TEST_CASE("dump modifier is scoped to one function", "[generation][diagnostics]")
+TEST_CASE("dump code modifier is scoped to one function", "[generation][diagnostics]")
 {
     llmcpp::test::TestWorkspace work;
     std::ofstream(work.path() / "diagnostics.cpp")
-        << "__llm__(dump) int answer() { Return 42. }\n"
+        << "__llm__(dump_code) int answer() { Return 42. }\n"
         << "__llm__ int increment(int x) { Return x plus one. }\n";
     std::vector<std::string> args{"--llm", "-fllm-cache-dir=cache", "diagnostics.cpp"};
     auto result = work.mock("json/test_return_values.json", args);
@@ -1198,7 +1321,8 @@ TEST_CASE("native Anthropic client completes a compiler tool loop", "[generation
     llmcpp::test::TestWorkspace work;
     llmcpp::test::TestFakeAnthropicServer server;
     llmcpp::test::TestCommandResult result =
-        work.llmcpp({"-fllm-no-cache", "test_failure.cpp", "-o", "native-anthropic"},
+        work.llmcpp({"-fllm-no-cache", "-fllm-max-output-tokens=768", "test_failure.cpp", "-o",
+                     "native-anthropic"},
                     {{"LLMCPP_AGENT", ""},
                      {"LLMCPP_BACKEND", "anthropic"},
                      {"ANTHROPIC_API_KEY", "test-key"},
@@ -1212,7 +1336,7 @@ TEST_CASE("native Anthropic client completes a compiler tool loop", "[generation
     std::vector<std::string> requests = server.requests();
     REQUIRE(requests.size() == 3);
     llmcpp::test::check_contains(requests[0], {"\"model\":\"requested-test-model\"", "\"get_task\"",
-                                               "\"messages\"", "\"system\""});
+                                               "\"messages\"", "\"system\"", "\"max_tokens\":768"});
     llmcpp::test::check_contains(
         requests[1], {"\"tool_use_id\":\"call-1\"", "\"tool_result\"", "Do something impossible."});
     llmcpp::test::check_contains(
@@ -1227,8 +1351,12 @@ TEST_CASE("native OpenAI client completes a compiler tool loop", "[generation][o
 {
     llmcpp::test::TestWorkspace work;
     llmcpp::test::TestFakeOpenAIServer server;
-    std::vector<std::string> args{"-fllm-no-cache", "-fllm-backend=openai", "test_failure.cpp",
-                                  "-o", "native-openai"};
+    std::vector<std::string> args{"-fllm-no-cache",
+                                  "-fllm-max-output-tokens=768",
+                                  "-fllm-backend=openai",
+                                  "test_failure.cpp",
+                                  "-o",
+                                  "native-openai"};
     SECTION("native client") {}
     SECTION("bundled Python agent")
     {
@@ -1250,6 +1378,9 @@ TEST_CASE("native OpenAI client completes a compiler tool loop", "[generation][o
     REQUIRE(requests.size() == 3);
     llmcpp::test::check_contains(requests[0], {"\"model\"", "\"requested-test-model\"",
                                                "\"get_task\"", "\"instructions\"", "\"function\""});
+    for (const std::string &request : requests) {
+        CHECK(request.find("768") != std::string::npos);
+    }
     llmcpp::test::check_contains(requests[1], {"\"previous_response_id\"", "\"response-1\"",
                                                "\"function_call_output\"", "call-1",
                                                "Do something impossible."});

@@ -3,7 +3,7 @@
  * Record from the project root:
  * llmc++ -fllm-transcript=trace.jsonl examples/19_transcript.cpp
  * Replay the same task:
- * llmc++ -fllm-force-regenerate -fllm-agent='llmcpp-agent --replay trace.jsonl' \
+ * llmc++ -fllm-regenerate -fllm-agent='llmcpp-agent --replay trace.jsonl' \
  *        examples/19_transcript.cpp
  */
 

@@ -144,6 +144,8 @@ class ReplayBackend:
         for recording in reversed(self.tasks):
             if not all(task.get(field) == recording["task"].get(field) for field in fields):
                 continue
+            if task.get("references", []) != recording["task"].get("references", []):
+                continue
             outcome = recording.get("outcome", {})
             if outcome.get("status") != "ok":
                 continue
@@ -225,7 +227,7 @@ class AnthropicBackend:
         for _ in range(max_turns):
             response = self.post({
                 "model": self.model,
-                "max_tokens": 16000,
+                "max_tokens": int(limits.get("max_output_tokens") or 16000),
                 "system": task["system_prompt"],
                 "tools": api_tools,
                 "messages": messages,
@@ -335,7 +337,7 @@ class OpenAIBackend:
                 "instructions": task["system_prompt"],
                 "tools": api_tools,
                 "input": inputs,
-                "max_output_tokens": 16000,
+                "max_output_tokens": int(limits.get("max_output_tokens") or 16000),
             }
             if previous_id:
                 body["previous_response_id"] = previous_id
@@ -383,6 +385,8 @@ class CodexBackend:
 
     # Run Codex with a temporary compiler-tool bridge and enforce its deadline.
     def generate(self, conn, tools, task):
+        if task.get("limits", {}).get("max_output_tokens"):
+            raise RuntimeError("codex backend cannot enforce max_output_tokens; use an API backend")
         timeout = int(task.get("limits", {}).get("timeout_seconds", 600))
         state = {"accepted": False}
         with tempfile.TemporaryDirectory(prefix="llmcpp-agent-") as tmp:
@@ -484,6 +488,8 @@ class ClaudeCodeBackend:
 
     # Run Claude Code with a temporary compiler-tool bridge and enforce its deadline.
     def generate(self, conn, tools, task):
+        if task.get("limits", {}).get("max_output_tokens"):
+            raise RuntimeError("claude backend cannot enforce max_output_tokens; use an API backend")
         timeout = int(task.get("limits", {}).get("timeout_seconds", 600))
         state = {"accepted": False}
         with tempfile.TemporaryDirectory(prefix="llmcpp-agent-") as tmp:
