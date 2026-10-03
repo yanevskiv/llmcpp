@@ -101,7 +101,7 @@ Add `-fllm-transcript=trace.jsonl` to record tasks, tool calls, and outcomes.
 The bundled agent can replay a successful matching task:
 
 ```sh
-llmc++ -fllm-regenerate -fllm-agent='llmcpp-agent --replay trace.jsonl' main.cpp
+llmc++ -fllm-force-regenerate -fllm-agent='llmcpp-agent --replay trace.jsonl' main.cpp
 ```
 
 Replay checks the recorded context, prompt, instructions, and effective policy,

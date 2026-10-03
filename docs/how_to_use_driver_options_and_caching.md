@@ -31,8 +31,8 @@ does not invalidate cached bodies, including older full-length filenames.
 
 | Option | Effect |
 | --- | --- |
-| `-fllm-offline` | Require cached bodies and never contact an agent. |
-| `-fllm-regenerate` | Ignore matching entries and generate fresh bodies. |
+| `-fllm-offline` | Require cached bodies and never contact an agent unless force regeneration is enabled. |
+| `-fllm-force-regenerate` | Ignore matching entries and generate fresh bodies, overriding offline mode. |
 | `-fllm-no-cache` | Do not read or write the body cache. |
 | `-fllm-cache-dir=<dir>` | Store cache entries in another directory. |
 | `-fllm-cache-lifetime=<seconds>` | Limit cache file age; `0` means no expiry (default). |
@@ -124,11 +124,14 @@ and timeout in both `llm/generate` and `get_task`. Limits are enforced by the
 compiler. A requested model must be honored or rejected by the agent.
 `max_tool_calls(20)` overrides the compiler-tool call budget for one function;
 like `max_attempts` and `timeout`, it requires a positive integer literal.
-Offline mode still prohibits generation, including for a `no_cache` target.
+Offline mode prohibits generation unless force regeneration is enabled.
 Use `__llm__(offline)` to require a cached body for just one function. It enables
-cache reads even with `-fllm-no-cache`, ignores `-fllm-regenerate`, and reports an
+cache reads even with `-fllm-no-cache` and reports an
 error on a cache miss without contacting an agent. It cannot be combined with
 `no_cache`.
+Use `__llm__(force_regenerate)` to skip cache reads and generate a fresh body
+for one function. The new body is saved unless caching is disabled. Offline mode
+is overridden by force regeneration.
 Use `__llm__(key("abcdef0"))` to pin a cached implementation independently of the
 prompt, context, or backend. Supply 7 to 64 hexadecimal characters, either a full
 hash or an unambiguous prefix. Ambiguous prefixes are errors. A cache miss calls

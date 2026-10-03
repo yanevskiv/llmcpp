@@ -389,7 +389,7 @@ the same.
 - Meant to be **committed**, like a lockfile. Code review sees exactly what the LLM
   wrote.
 - Modes: `-fllm-cache=readwrite` (default for dev), `-fllm-offline` (CI: fail
-  if missing, no network), `-fllm-regenerate` (ignore cache).
+  if missing, no network), `-fllm-force-regenerate` (ignore cache).
 
 ### 6.3 Performance
 - `llmcpp-prefill`: runs the compiler over a compile database with `-fllm-collect`,

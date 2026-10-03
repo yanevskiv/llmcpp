@@ -139,8 +139,8 @@ API credentials and endpoint variables are documented in
 | `-fllm-system-prompt=<file>` | Replace the built-in system prompt with a UTF-8 file. |
 | `-fllm-append-system-prompt=<file>` | Append a UTF-8 file to the system prompt; repeat to append several files. |
 | `-fllm-agent-config=<file>` | Pass a JSON configuration object to an external agent. |
-| `-fllm-offline` | Use cached bodies only; never contact an agent. |
-| `-fllm-regenerate` | Ignore cached bodies and generate fresh ones. |
+| `-fllm-offline` | Use cached bodies only; never contact an agent unless force regeneration is enabled. |
+| `-fllm-force-regenerate` | Ignore cached bodies and generate fresh ones, overriding offline mode. |
 | `-fllm-no-cache` | Disable cache reads and writes. |
 | `-fllm-cache-dir=<dir>` | Choose the cache directory; defaults to `.llmcache/` beside the source. |
 | `-fllm-cache-salt=<salt>` | Add a nonempty default salt to computed cache keys; per-function `cache_salt` replaces it. Does not change caching policy. |
@@ -160,7 +160,7 @@ API credentials and endpoint variables are documented in
 
 Combine attributes with commas, for example
 `__llm__(model("id"), no_cache, timeout(120))`. They override command-line
-defaults, but cannot enable generation in offline mode. `cache_salt` and `no_cache`
+defaults; `force_regenerate` also overrides offline mode. `cache_salt` and `no_cache`
 cannot be combined. Model names and cache salts must be nonempty quoted strings;
 numeric limits must be positive integer literals, except `cache_lifetime`, which
 also accepts `0` for no expiry.
@@ -174,7 +174,8 @@ also accepts `0` for no expiry.
 | `__llm__(system_prompt("file"))` | Replace this function's system prompt with a UTF-8 file, excluding driver-appended instructions. Relative paths use the compiler's working directory. |
 | `__llm__(append_system_prompt("file"))` | Append a UTF-8 file to this function's resolved system prompt. Repeat to append several files; applied after `system_prompt` regardless of modifier order. |
 | `__llm__(agent_config("file"))` | Replace this function's external-agent configuration with a JSON object from a file. |
-| `__llm__(offline)` | Use a cached body only for this function, even with `-fllm-regenerate`; fail on a cache miss. Cannot be combined with `no_cache`. |
+| `__llm__(offline)` | Use a cached body only for this function; fail on a cache miss unless force regeneration is enabled. Cannot be combined with `no_cache`. |
+| `__llm__(force_regenerate)` | Ignore cached bodies and generate a fresh one for this function, overriding offline mode. Save the result unless caching is disabled. |
 | `__llm__(no_cache)` | Disable cache reads and writes for this function. |
 | `__llm__(cache_dir("path"))` | Override the cache directory for this function. Relative paths use the compiler's working directory; caching policy is unchanged. |
 | `__llm__(cache_salt("salt"))` | Replace the default cache salt for this function; the string is not a filename. |

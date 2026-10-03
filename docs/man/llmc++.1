@@ -38,10 +38,10 @@ Pass a JSON configuration object to an external agent. Selects the Python
 adapter instead of a native API client.
 .TP
 .B \-fllm\-offline
-Use cached bodies only. Do not contact an agent.
+Use cached bodies only. Do not contact an agent unless force regeneration is enabled.
 .TP
-.B \-fllm\-regenerate
-Ignore cached bodies and generate fresh ones.
+.B \-fllm\-force\-regenerate
+Ignore cached bodies and generate fresh ones, overriding offline mode.
 .TP
 .B \-fllm\-no\-cache
 Disable cache reads and writes.
@@ -164,13 +164,17 @@ generating any bodies; print only selected functions.
 .TP
 .B offline
 Require a cached body for one function and fail on a cache miss without contacting
-an agent. Enable cache reads even with \-fllm\-no\-cache and ignore
-\-fllm\-regenerate. Cannot be combined with no_cache.
+an agent unless force regeneration is enabled. Enable cache reads even with
+\-fllm\-no\-cache. Cannot be combined with no_cache.
 .TP
 .B cache_salt("salt")
 Replace the default cache salt for this function with a nonempty string,
 not a filename.
 Cannot be combined with no_cache.
+.TP
+.B force_regenerate
+Ignore cached bodies and generate a fresh one for this function, overriding
+offline mode. Write the new body to cache unless caching is disabled.
 .TP
 .B key("hash")
 Use an explicit cache identity of 7 to 64 hexadecimal characters, or an
@@ -204,7 +208,7 @@ Print this function's accepted body, including on cache hits.
 Print progress and agent tool diagnostics for this function.
 .PP
 Separate options with commas inside __llm__(...). Per-function options
-override driver defaults but cannot enable generation in offline mode.
+override driver defaults; force_regenerate also overrides offline mode.
 .SH MACROS
 .B __LLMCPP__
 is defined as 1 during compilation and preprocessing.
