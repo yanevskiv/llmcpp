@@ -143,6 +143,7 @@ API credentials and endpoint variables are documented in
 | `-fllm-regenerate` | Ignore cached bodies and generate fresh ones. |
 | `-fllm-no-cache` | Disable cache reads and writes. |
 | `-fllm-cache-dir=<dir>` | Choose the cache directory; defaults to `.llmcache/` beside the source. |
+| `-fllm-cache-salt=<salt>` | Add a nonempty default salt to computed cache keys; per-function `cache_salt` replaces it. Does not change caching policy. |
 | `-fllm-cache-lifetime=<seconds>` | Treat entries older than this file age as cache misses; `0` means no expiry (default). Offline builds fail on expired entries. |
 | `-fllm-hash-abbrev=<n>` | Display at least `n` hash characters and use them in cache filenames (default: 7; range: 1–64). Ambiguous prefixes grow automatically. |
 | `-fllm-max-attempts=<n>` | Limit rejected submissions per body; positive integer, default `4`. |
@@ -167,21 +168,25 @@ also accepts `0` for no expiry.
 | Modifier | Effect |
 | --- | --- |
 | `__llm__` | Generate the body using the driver defaults. Parentheses are optional; `__llm__()` has the same effect. |
-| `__llm__(model("id"))` | Override the model for this function. |
 | `__llm__(backend("name"))` | Override the backend for this function: `anthropic`, `openai`, `codex`, or `claude`. A configured custom agent still takes precedence. |
 | `__llm__(agent("command"))` | Override the external agent command for this function; takes precedence over native backends. |
+| `__llm__(model("id"))` | Override the model for this function. |
 | `__llm__(system_prompt("file"))` | Replace this function's system prompt with a UTF-8 file, excluding driver-appended instructions. Relative paths use the compiler's working directory. |
-| `__llm__(no_cache)` | Disable cache reads and writes for this function. |
+| `__llm__(append_system_prompt("file"))` | Append a UTF-8 file to this function's resolved system prompt. Repeat to append several files; applied after `system_prompt` regardless of modifier order. |
+| `__llm__(agent_config("file"))` | Replace this function's external-agent configuration with a JSON object from a file. |
 | `__llm__(offline)` | Use a cached body only for this function, even with `-fllm-regenerate`; fail on a cache miss. Cannot be combined with `no_cache`. |
-| `__llm__(key("hash"))` | Use an explicit cache identity (7 to 64 hexadecimal characters). An unambiguous prefix can select an existing body despite changed inputs; a miss generates and saves under this key. Cannot be combined with `no_cache`. |
-| `__llm__(cache_salt("salt"))` | Add a salt to this function's cache key; the string is not a filename. |
+| `__llm__(no_cache)` | Disable cache reads and writes for this function. |
 | `__llm__(cache_dir("path"))` | Override the cache directory for this function. Relative paths use the compiler's working directory; caching policy is unchanged. |
+| `__llm__(cache_salt("salt"))` | Replace the default cache salt for this function; the string is not a filename. |
 | `__llm__(cache_lifetime(3600))` | Override the maximum cache file age in seconds for this function; `0` means no expiry. Applies even with an explicit `key`. |
 | `__llm__(max_attempts(2))` | Override the rejected-submission limit for this function. |
 | `__llm__(max_tool_calls(20))` | Override the compiler-tool call limit for this function. |
 | `__llm__(timeout(120))` | Override the generation deadline in seconds for this function. |
 | `__llm__(dump)` | Print this function's accepted body, including on cache hits. |
+| `__llm__(dump_context)` | Print this function's task and compiler context. Stops the compilation without generating any bodies; only selected functions are printed. |
 | `__llm__(verbose)` | Print progress and agent tool diagnostics for this function. |
+| `__llm__(transcript("file"))` | Override the JSONL transcript destination for this function. Relative paths use the compiler's working directory. |
+| `__llm__(key("hash"))` | Use an explicit cache identity (7 to 64 hexadecimal characters). An unambiguous prefix can select an existing body despite changed inputs; a miss generates and saves under this key. Cannot be combined with `no_cache`. |
 
 ### Macros
 

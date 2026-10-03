@@ -211,7 +211,8 @@ namespace llmcpp
                 if (passResult.m_status == data::DataGenerationStatus::Rewritten) {
                     output = std::move(passResult.m_output);
                 }
-                if (options.options().m_dump_context) {
+                if (passResult.m_status == data::DataGenerationStatus::DumpedContext ||
+                    options.options().m_dump_context) {
                     continue;
                 }
 
@@ -239,6 +240,7 @@ namespace llmcpp
         }
 
         bool failed = false;
+        bool dumpedContext = false;
         for (const Command &job : compilation->getJobs()) {
             std::optional<std::string> input = cxx_input_of(job);
             if (!input || is_preprocess_job(job)) {
@@ -253,6 +255,8 @@ namespace llmcpp
             data::DataGenerationResult passResult = run_llm_pass(cc1Args, options.options());
             if (passResult.m_status == data::DataGenerationStatus::Failed) {
                 failed = true;
+            } else if (passResult.m_status == data::DataGenerationStatus::DumpedContext) {
+                dumpedContext = true;
             } else if (passResult.m_status == data::DataGenerationStatus::Rewritten) {
                 DriverFrontendRunner::set_rewritten_input(*input, std::move(passResult.m_output));
             }
@@ -260,7 +264,7 @@ namespace llmcpp
         if (failed) {
             return 1;
         }
-        if (options.options().m_dump_context) {
+        if (dumpedContext || options.options().m_dump_context) {
             return 0;
         }
 
