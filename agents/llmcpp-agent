@@ -36,7 +36,7 @@ import time
 import urllib.error
 import urllib.request
 
-VERSION = "0.1-prototype"
+VERSION = "0.0.1"
 VERBOSE = os.environ.get("LLMCPP_VERBOSE", "").lower() in {"1", "true", "yes", "on"}
 
 
@@ -702,6 +702,9 @@ def choose_backend(config=None):
 
 # Select the execution mode and serve compiler generation requests.
 def main():
+    if len(sys.argv) == 2 and sys.argv[1] == "--version":
+        print("llmcpp-agent", VERSION)
+        return 0
     if len(sys.argv) == 3 and sys.argv[1] == "--mcp-bridge":
         mcp_bridge(sys.argv[2])
         return 0

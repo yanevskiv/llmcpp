@@ -128,6 +128,10 @@ namespace llmcpp
     int DriverApp::run()
     {
         llvm::SmallVector<const char *, 64> args(m_argv, m_argv + m_argc);
+        if (args.size() == 2 && StringRef(args[1]) == "--version") {
+            llvm::outs() << "llmc++ " << LLMCPP_VERSION << "\n";
+            return 0;
+        }
         if (args.size() >= 2 && StringRef(args[1]) == "-cc1") {
             return DriverFrontendRunner::run_cc1(llvm::ArrayRef(args).slice(2), args[0]);
         }

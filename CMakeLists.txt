@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(llmcpp VERSION 0.1 LANGUAGES CXX)
+project(llmcpp VERSION 0.0.1 LANGUAGES CXX)
 
 # Build defaults.
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
@@ -187,6 +187,7 @@ target_compile_definitions(
         __STDC_FORMAT_MACROS
         __STDC_LIMIT_MACROS
         LLMCPP_LLVM_VERSION="${LLMCPP_LLVM_VERSION}"
+        LLMCPP_VERSION="${PROJECT_VERSION}"
         CPPHTTPLIB_OPENSSL_SUPPORT
 )
 target_include_directories(
@@ -303,11 +304,11 @@ if(BUILD_TESTING)
         llmcpp-tests
         PRIVATE
             LLMCPP_PATH="$<TARGET_FILE:llmcpp>"
+            LLMCPP_AGENT_PATH="${LLMCPP_AGENT_BINARY}"
             MOCK_AGENT_PATH="${CMAKE_CURRENT_SOURCE_DIR}/agents/llmcpp-mock-agent"
             TEST_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests"
     )
     add_dependencies(llmcpp-tests llmcpp)
-    install(TARGETS llmcpp-tests RUNTIME DESTINATION bin)
 
     list(APPEND CMAKE_MODULE_PATH "${LLMCPP_CATCH2_SOURCE_DIR}/extras")
     include(Catch)
