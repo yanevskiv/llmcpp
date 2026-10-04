@@ -235,7 +235,7 @@ also accepts `0` for no expiry.
 
 ## Technologies
 
-- **Languages**: C++17, Python 3, shell.
+- **Languages**: C++20 for llmc++ and its tests, Python 3, shell.
 - **Compiler infrastructure**: LLVM 19, Clang 19.
 - **Build and testing**: CMake, CTest, Catch2.
 - **Networking**: cpp-httplib, OpenSSL.

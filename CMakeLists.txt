@@ -177,7 +177,7 @@ set_target_properties(
         INSTALL_RPATH "$ORIGIN/../lib"
 )
 
-target_compile_features(llmcpp PRIVATE cxx_std_17)
+target_compile_features(llmcpp PRIVATE cxx_std_20)
 target_compile_options(llmcpp PRIVATE -fno-rtti -Wall -Wno-unused-parameter)
 target_compile_definitions(
     llmcpp
@@ -292,7 +292,7 @@ if(BUILD_TESTING)
         llmcpp-tests
         PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
     )
-    target_compile_features(llmcpp-tests PRIVATE cxx_std_17)
+    target_compile_features(llmcpp-tests PRIVATE cxx_std_20)
     target_include_directories(llmcpp-tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include")
     target_include_directories(
         llmcpp-tests
