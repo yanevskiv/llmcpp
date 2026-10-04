@@ -1,22 +1,22 @@
-# Versioning
+# Project priorities
 
-Use Semantic Versioning for the two shipped programs independently. `llmc++`
-gets its version from `project(llmcpp VERSION ...)` in `CMakeLists.txt`; the
-compiler reports that value through `--version` and its MCP `serverInfo`.
-`llmcpp-agent` gets its version from `VERSION` in `agents/llmcpp-agent`; it
-reports that value through `--version` and its MCP `clientInfo`/`serverInfo`.
-Both started at `0.0.1`.
-`llmcpp-tests` is a build-tree test tool, not a separately versioned release.
+- Follow `STYLE.md` strictly for project C++ and Catch2 code. For Python and
+  CMake, follow its intent (clear grouping, naming, and short intent comments),
+  not its C++-specific rules.
+- Keep `llmc++` a Clang-based compiler driver. It uses C++20 internally, but
+  must respect the language standard selected for user source files.
+- Keep integration tests self-contained under `tests/`; never make them depend
+  on examples. Use deterministic local agents and servers, not live model APIs.
+- Update README, guides, and man pages when public behavior changes. Successful
+  generation should remain silent unless the user requests diagnostic output.
+- Build with `./do_build.sh` and test with `./do_tests.sh`. Build the separate
+  documentation site with `./do_build_docs.sh` when changing `docs/web/`.
 
-For every edit, assess whether it changes either program's shipped behavior or
-compatibility. Bump only the affected program's version when it does. Use a patch
-bump for compatible fixes, a minor bump for compatible new functionality, and a
-minor bump for breaking changes while the program remains at major version 0.
-Call out breaking changes in the commit message or documentation. Once a program
-reaches major version 1, use a major bump for breaking changes. Documentation,
-tests, and build-only edits do not require a version bump unless they alter a
-shipped program's behavior.
+# Versions
 
-The generation protocol version, MCP protocol version, and cache format version
-are separate compatibility identifiers. Change them only when their respective
-formats or contracts change; do not tie them to either program's release version.
+Version `llmc++` in `CMakeLists.txt` and `llmcpp-agent` in its `VERSION` constant
+independently. Bump affected programs for shipped fixes (patch), features or
+pre-1.0 breaks (minor), and post-1.0 breaks (major); document breaks. Docs,
+tests, and build-only edits need no bump unless shipped behavior changes.
+`llmcpp-tests` has no separate version. Bump protocol and cache-format versions
+only when their contracts change.
