@@ -1,107 +1,103 @@
 # llmcpp style contract
 
-This contract applies to project-owned C++ under `include/`, `src/`, and the
-Catch2 test implementation. Fixture sources under `tests/` intentionally
-exercise unusual llmcpp syntax and are exempt where a test requires it.
+- Apply this contract to project-owned C++ under `include/` and `src/`, and to
+  the Catch2 test implementation.
+- Exempt fixture sources under `tests/` where a test requires unusual llmcpp
+  syntax.
 
 ## Layout and naming
 
-- Declarations, including private implementation adapters, live under
-  `include/llmcpp/`; implementations in the `llmcpp` namespace live under
-  `src/llmcpp/`. The driver entry point remains `src/main.cpp`.
-- Header-only value types and enums live under `include/llmcpp/data/` in the
-  `llmcpp::data` namespace. Use their fully scoped `data::TypeName` spelling
-  from within `llmcpp` implementation code.
-- Project-defined classes, structs, and enums begin with their PascalCase
-  module prefix. Module filenames begin with the same prefix in snake_case.
-  For example, `llmcpp::CompilerSandbox` lives in
-  `include/llmcpp/compiler_sandbox.h` and `src/llmcpp/compiler_sandbox.cpp`.
-- C++ filenames use lowercase `snake_case`.
-- Every project-defined class has a same-named header/source pair. Do not
-  define a project class or struct in a `.cpp` file; declare it in its header
-  and implement callable members in its matching `.cpp` file. Stateless record
-  structs that need no implementation may have only a header.
-- Every C++ source and header starts with a descriptive `/* ... */` block using
+- Put declarations, including private implementation adapters, under
+  `include/llmcpp/`; put `llmcpp` implementations under `src/llmcpp/`. Keep the
+  driver entry point in `src/main.cpp`.
+- Put header-only value types and enums under `include/llmcpp/data/` in
+  `llmcpp::data`. Spell them as `data::TypeName` in `llmcpp` implementation code.
+- Prefix project-defined classes, structs, and enums with their PascalCase
+  module name. Prefix their filenames with the same name in snake_case: put
+  `llmcpp::CompilerSandbox` in `compiler_sandbox.h` and `compiler_sandbox.cpp`.
+- Name C++ files in lowercase `snake_case`.
+- Give every project-defined class a same-named header/source pair. Declare
+  project classes and structs in headers, not `.cpp` files; implement callable
+  members in the matching `.cpp` file. Keep a stateless record struct
+  header-only when it needs no implementation.
+- Start every C++ source and header with a descriptive `/* ... */` block using
   `C++ file for ...` or `C++ header for ...` wording.
-- Namespace braces and header guards close without trailing comments.
+- Close namespace braces and header guards without trailing comments.
 
 ## Formatting
 
-- `.clang-format` is authoritative.
-- Indentation is four spaces. Tabs are forbidden.
-- Namespaces are indented. Access labels align with their class declaration,
-  and members are indented four additional spaces.
-- Every control-flow body, including single statements, uses braces. This
-  applies to `if`, `else`, `for`, `while`, and `do` statements.
-- Function, method, constructor, namespace, class, struct, enum, and union
-  opening braces go on the following line. Control-flow and lambda braces stay
-  on the statement's line.
-- Constructor initializer lists put the colon before the first initializer and
-  put each following initializer on its own line with a leading comma.
+- Follow `.clang-format` as the formatting authority.
+- Indent with four spaces; do not use tabs.
+- Indent namespaces. Align access labels with their class declaration and
+  indent members four additional spaces.
+- Brace every control-flow body, including single statements in `if`, `else`,
+  `for`, `while`, and `do` statements.
+- Put opening braces for functions, methods, constructors, namespaces, classes,
+  structs, enums, and unions on the following line. Keep control-flow and
+  lambda braces on the statement's line.
+- Put the colon before the first constructor initializer. Put each following
+  initializer on its own line with a leading comma.
 
 ## Naming
 
-- Classes, structs, enums, type aliases, and other type names use `PascalCase`.
-- Project-owned functions and methods use `snake_case()`.
-- Data members use `m_snake_case`, including public aggregate fields.
-- Parameters and local variables use lower `camelCase`: prefer a single
-  lowercase word such as `opts`, `begin`, or `label`, and use forms such as
-  `parseOpts` only when multiple words are needed.
-- Expand a one-letter local or parameter only when it obscures its role.
-  Conventional narrow-scope names such as `i` for an iterator or `c` for a
-  character remain appropriate.
-- Required overrides of external APIs retain the spelling required by that API.
+- Name classes, structs, enums, type aliases, and other types in `PascalCase`.
+- Name project-owned functions and methods in `snake_case()`.
+- Name data members in `m_snake_case`, including public aggregate fields.
+- Name parameters and local variables in lower `camelCase`. Prefer a single
+  lowercase word such as `opts`, `begin`, or `label`; use `parseOpts` only when
+  multiple words are needed.
+- Expand a one-letter local or parameter only when it obscures its role. Keep
+  conventional narrow-scope names such as `i` for an iterator or `c` for a
+  character.
+- Preserve the spelling required by external APIs in overrides.
 
 ## Documentation
 
-- Classes, structs, enums, functions, and methods, including private members,
-  are introduced by a Doxygen
-  block of the form `/** ... */`; `///` Doxygen comments are forbidden.
+- Introduce every class, struct, enum, function, and method, including private
+  members, with a `/** ... */` Doxygen block; do not use `///` Doxygen comments.
 - Use a one-line `/** ... */` block for a concise single-sentence description,
-  including namespace and simple type descriptions. Use a multi-line block
-  when parameter, return, template, or additional detail tags are needed.
-- Document every namespace and subnamespace immediately above its declaration:
-  headers use a `/** ... */` block and source files use a short descriptive
-  `// Namespace for ...` comment.
-- Every data member and aggregate field, including private implementation
-  state, has a concise Doxygen block describing the value it stores.
-- Do not put a blank line before a Doxygen documentation block. Indent a
-  field's block and declaration one four-space level inside the containing
-  class or struct.
-- Function and method documentation includes one `@param` entry for every
-  named parameter. Non-`void` functions include `@return`. Constructors,
-  destructors, and `void` functions omit `@return`.
-- Function templates document template parameters with `@tparam`.
-- A declaration's Doxygen block is the canonical documentation. Definitions do
-  not repeat the full contract.
-- In `.cpp` files, every namespace, type, free function, and out-of-line method
-  definition has one short `// ...` comment immediately above it stating its
-  purpose or intent. These implementation annotations stay outside the entity's
-  body.
-- Include groups in `.cpp` files have a short `// ...` annotation describing
-  why those headers are present.
-- Documentation and intent comments over functions, methods, constructors, and
-  destructors use imperative mood: for example, `Run the llmc++ driver.`, not
-  `Runs the llmc++ driver.`
-- Intent comments over non-callable entities are descriptive noun phrases that
-  name the entity kind and purpose, such as `Namespace for ...`, `Class for ...`,
+  including namespace and simple type descriptions. Use a multi-line block for
+  parameter, return, template, or additional detail tags.
+- Document every namespace and subnamespace immediately above its declaration.
+  Use `/** ... */` in headers and a short `// Namespace for ...` comment in
+  source files.
+- Document every data member and aggregate field, including private
+  implementation state, with a concise Doxygen block describing its value.
+- Put no blank line before a Doxygen block. Indent a field's block and
+  declaration one four-space level inside its class or struct.
+- Include one `@param` entry for every named function or method parameter.
+  Include `@return` for non-`void` functions; omit it for constructors,
+  destructors, and `void` functions.
+- Document function template parameters with `@tparam`.
+- Treat the declaration's Doxygen block as canonical; do not repeat the full
+  contract at the definition.
+- Put one short `// ...` intent comment immediately above every namespace,
+  type, free function, and out-of-line method definition in `.cpp` files. Keep
+  these comments outside entity bodies.
+- Put a short `// ...` comment above each `.cpp` include group to explain its
+  purpose.
+- Write documentation and intent comments over functions, methods,
+  constructors, and destructors in imperative mood: `Run the llmc++ driver.`,
+  not `Runs the llmc++ driver.`
+- Write intent comments over non-callable entities as descriptive noun phrases
+  naming their kind and purpose: `Namespace for ...`, `Class for ...`,
   `Structure for ...`, or `Constants for ...`.
 
 ## Function bodies
 
-- Function, method, and lambda bodies contain no source comments, except that an
-  otherwise empty constructor body contains exactly `// Empty.`. Explain other
-  intent in the entity's Doxygen block or through clearer names and smaller helpers.
-- String literals containing comment syntax are not comments and are allowed.
-- Comments outside callable bodies are allowed, except for trailing namespace
-  and header-guard comments.
+- Keep source comments out of function, method, and lambda bodies. Put exactly
+  `// Empty.` in an otherwise empty constructor body. Express other intent in
+  Doxygen blocks, clearer names, or smaller helpers.
+- Allow string literals containing comment syntax; do not treat them as comments.
+- Allow comments outside callable bodies except for trailing namespace and
+  header-guard comments.
 
 ## Enforcement
 
-Install the hooks with `pre-commit install`. The hooks run clang-format in
-check mode, clang-tidy naming checks, and `scripts/check_style.py` for
-filename, file-header, indentation, Doxygen-form, and body-comment rules. Run
-all checks manually with `pre-commit run --all-files`.
+- Install the hooks with `pre-commit install`.
+- Run `pre-commit run --all-files` to check formatting, naming, file headers,
+  indentation, Doxygen form, and body comments. The hooks use clang-format,
+  clang-tidy, and `scripts/check_style.py`.
 
 ## Repository documentation
 
