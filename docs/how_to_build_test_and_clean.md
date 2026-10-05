@@ -10,7 +10,7 @@ cleaning them does not touch system packages.
 
 - Debian or Ubuntu on x86-64
 - CMake 3.20 or newer and a C++20-capable compiler
-- Make or Ninja
+- GNU Make (included in `build-essential`)
 - `apt-get`, `dpkg-deb`, and either `curl` or `wget`
 - Python 3 for the Codex and Claude Code adapters and the scripted test agent
 - At least one generation backend: an OpenAI or Anthropic API key, Codex, or
@@ -31,6 +31,25 @@ what is already present.
 
 `do_build.sh` creates the build tree under `build/out/` and installs a runnable
 bundle under `build/install/`.
+
+To copy that bundle into your user-local prefix, run:
+
+```sh
+./do_install.sh
+```
+
+This installs `llmc++`, `llmcpp-agent`, their runtime files, and both man pages
+under `~/.local`. Add these lines to your shell configuration if your shell or
+man-page search path does not already include those locations:
+
+```sh
+export PATH="$HOME/.local/bin:$PATH"
+export MANPATH="$HOME/.local/share/man:${MANPATH-}"
+```
+
+Then `llmc++`, `man llmc++`, and `man llmcpp-agent` work without referring to
+the build directory. Re-run `./do_install.sh` after rebuilding to refresh the
+user-local copy.
 
 Documentation is built separately with `./do_build_docs.sh`.
 Its build tree is `build/docs/`, and the HTML

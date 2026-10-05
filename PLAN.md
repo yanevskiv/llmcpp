@@ -824,3 +824,24 @@ atomic publication alone prevents partial entries, not duplicate API calls.
   cache keys, shared transcript paths, multi-input invocations, worker failures,
   and `LLMCPP_JOBS` versus command-line precedence. Assert final source and
   diagnostics are stable regardless of worker completion order.
+
+---
+
+## 16. Opt-in review before accepting generated code
+
+Add `__llm__(review)` for functions whose freshly generated body needs human
+approval during compilation. Show the candidate C++ and its validation result,
+then offer accept, regenerate, or abort. Accept continues compilation and may
+publish the body to the cache; regenerate asks the agent for another candidate;
+abort fails without emitting an object or rewritten source. Never cache a
+rejected candidate.
+
+Review only new candidates. An accepted cache hit should work without a prompt,
+so later offline and CI builds remain noninteractive. When review is needed but
+no terminal is available, fail with an actionable diagnostic instead of reading
+build input from standard input or silently accepting the body. Keep ordinary
+`__llm__` builds silent and noninteractive.
+
+If concurrent generation is enabled, serialize review prompts even when agent
+sessions run in parallel. Test acceptance, rejection and regeneration, abort,
+cache hits, and the no-terminal case with a controlled terminal fixture.
