@@ -132,17 +132,19 @@ TEST_CASE("environment generation defaults validate values", "[options]")
           std::pair{"LLMCPP_MAX_ATTEMPTS", "0"}, std::pair{"LLMCPP_MAX_TOOL_CALLS", "-1"},
           std::pair{"LLMCPP_MAX_OUTPUT_TOKENS", "0"}, std::pair{"LLMCPP_TIMEOUT", "no"},
           std::pair{"LLMCPP_HASH_ABBREV", "65"}, std::pair{"LLMCPP_CACHE_LIFETIME", "-1"}}) {
-        auto result = work.llmcpp({"-fsyntax-only", "test_failure.cpp"}, {{name, value}});
+        auto result =
+            work.llmcpp({"-fsyntax-only", "test_integration_failure.cpp"}, {{name, value}});
         INFO(name);
         CHECK(result.m_status != 0);
         llmcpp::test::check_contains(result.m_err, {name});
     }
-    auto result = work.llmcpp({"-fllm-offline=maybe", "test_failure.cpp"});
+    auto result = work.llmcpp({"-fllm-offline=maybe", "test_integration_failure.cpp"});
     CHECK(result.m_status != 0);
     llmcpp::test::check_contains(result.m_err, {"invalid boolean"});
     for (const char *name : {"LLMCPP_SYSTEM_PROMPT", "LLMCPP_APPEND_PROMPT", "LLMCPP_CONTEXT",
                              "LLMCPP_AGENT_CONFIG"}) {
-        result = work.llmcpp({"-fsyntax-only", "test_failure.cpp"}, {{name, "missing.file"}});
+        result = work.llmcpp({"-fsyntax-only", "test_integration_failure.cpp"},
+                             {{name, "missing.file"}});
         CHECK(result.m_status != 0);
         llmcpp::test::check_contains(result.m_err, {"missing.file"});
     }
@@ -156,7 +158,7 @@ TEST_CASE("environment cache policies control generation", "[options][cache]")
     std::vector<std::pair<std::string, std::string>> environment = {
         {"LLMCPP_AGENT", MOCK_AGENT_PATH},
         {"LLMCPP_BACKEND", ""},
-        {"LLMCPP_MOCK_SCRIPT", (work.path() / "json/test_options.json").string()},
+        {"LLMCPP_MOCK_SCRIPT", (work.path() / "json/test_integration_options.json").string()},
         {"LLMCPP_CACHE_DIR", "env-cache"},
         {"LLMCPP_CACHE_SALT", "env-salt"},
         {"LLMCPP_CACHE_LIFETIME", "0"},
@@ -190,7 +192,8 @@ TEST_CASE("environment cache policies control generation", "[options][cache]")
 TEST_CASE("invalid annotations produce llmc++ diagnostics", "[diagnostics]")
 {
     llmcpp::test::TestWorkspace work;
-    llmcpp::test::TestCommandResult result = work.llmcpp({"-fsyntax-only", "test_errors.cpp"});
+    llmcpp::test::TestCommandResult result =
+        work.llmcpp({"-fsyntax-only", "test_integration_errors.cpp"});
     REQUIRE(result.m_status != 0);
     llmcpp::test::check_contains(
         result.m_err, {"preprocessor directives are not allowed in an __llm__ function body",
@@ -209,10 +212,11 @@ TEST_CASE("annotations in headers are rejected", "[diagnostics]")
     for (const char *mode : {"-fsyntax-only", "--llm"}) {
         DYNAMIC_SECTION(mode)
         {
-            llmcpp::test::TestCommandResult result = work.llmcpp({mode, "test_header.cpp"});
+            llmcpp::test::TestCommandResult result =
+                work.llmcpp({mode, "test_integration_header.cpp"});
             REQUIRE(result.m_status != 0);
-            llmcpp::test::check_contains(result.m_err,
-                                         {"__llm__ function in included header 'test_header.h'"});
+            llmcpp::test::check_contains(
+                result.m_err, {"__llm__ function in included header 'test_integration_header.h'"});
         }
     }
 }
@@ -221,8 +225,9 @@ TEST_CASE("annotations in headers are rejected", "[diagnostics]")
 TEST_CASE("offline mode requires cached bodies", "[cache]")
 {
     llmcpp::test::TestWorkspace work;
-    llmcpp::test::TestCommandResult result = work.llmcpp(
-        {"-fsyntax-only", "-fllm-offline", "-fllm-cache-dir=empty", "test_all_forms.cpp"});
+    llmcpp::test::TestCommandResult result =
+        work.llmcpp({"-fsyntax-only", "-fllm-offline", "-fllm-cache-dir=empty",
+                     "test_integration_all_forms.cpp"});
     REQUIRE(result.m_status != 0);
     llmcpp::test::check_contains(result.m_err,
                                  {"no cached body for __llm__ function 'sum' (-fllm-offline)"});
@@ -233,7 +238,7 @@ TEST_CASE("compiler context includes plain prompts", "[context]")
 {
     llmcpp::test::TestWorkspace work;
     llmcpp::test::TestCommandResult result =
-        work.llmcpp({"-fllm-dump-context", "test_all_forms.cpp"});
+        work.llmcpp({"-fllm-dump-context", "test_integration_all_forms.cpp"});
     REQUIRE(result.m_status == 0);
     llmcpp::test::check_contains(result.m_out, {"\"signature\": \"void Counter::report() const\"",
                                                 "\"prompt\": \"Store the sum of values in total.\"",
@@ -249,14 +254,15 @@ TEST_CASE("target options and prompt files reach the agent", "[generation][optio
     std::ofstream(work.path() / "rules.md") << "Project rules.";
     std::ofstream(work.path() / "config.json")
         << R"json({"api_key":"secret-value","project":"scores"})json";
-    llmcpp::test::TestCommandResult result = work.mock(
-        "json/test_options.json",
-        {"--llm", "-fllm-cache-dir=cache", "-fllm-model=default-model", "-fllm-max-attempts=5",
-         "-fllm-timeout=10", "-fllm-system-prompt=prompt.md", "-fllm-append-prompt=rules.md",
-         "-fllm-agent-config=config.json", "-fllm-transcript=trace.jsonl", "test_options.cpp"});
+    llmcpp::test::TestCommandResult result =
+        work.mock("json/test_integration_options.json",
+                  {"--llm", "-fllm-cache-dir=cache", "-fllm-model=default-model",
+                   "-fllm-max-attempts=5", "-fllm-timeout=10", "-fllm-system-prompt=prompt.md",
+                   "-fllm-append-prompt=rules.md", "-fllm-agent-config=config.json",
+                   "-fllm-transcript=trace.jsonl", "test_integration_options.cpp"});
     INFO(result.m_err);
     REQUIRE(result.m_status == 0);
-    std::string log = llmcpp::test::read_file(work.path() / "test_options.log");
+    std::string log = llmcpp::test::read_file(work.path() / "test_integration_options.log");
     llmcpp::test::check_contains(log, {"Replacement instructions.", "Project rules.",
                                        "target-model", "default-model", "\"max_attempts\": 12",
                                        "\"timeout_seconds\": 120", "\"cache\": \"disabled\"",
@@ -280,7 +286,7 @@ TEST_CASE("target options and prompt files reach the agent", "[generation][optio
          "-fllm-append-prompt=rules.md", "-fllm-agent-config=config.json",
          "-fllm-agent=" + (fs::path(LLMCPP_PATH).parent_path() / "llmcpp-agent").string() +
              " --replay trace.jsonl",
-         "test_options.cpp"});
+         "test_integration_options.cpp"});
     INFO(replay.m_err);
     REQUIRE(replay.m_status == 0);
 }
@@ -290,9 +296,10 @@ TEST_CASE("cache tracks context and system instructions", "[cache][options]")
 {
     llmcpp::test::TestWorkspace work;
     std::ofstream(work.path() / "cached.cpp")
-        << "#include \"include/test_context.h\"\n__llm__() int cached() { Return the score. }\n";
-    llmcpp::test::TestCommandResult generated =
-        work.mock("json/test_options.json", {"--llm", "-fllm-cache-dir=cache", "cached.cpp"});
+        << "#include \"include/test_integration_context.h\"\n__llm__() int cached() { Return the "
+           "score. }\n";
+    llmcpp::test::TestCommandResult generated = work.mock(
+        "json/test_integration_options.json", {"--llm", "-fllm-cache-dir=cache", "cached.cpp"});
     INFO(generated.m_err);
     REQUIRE(generated.m_status == 0);
     llmcpp::test::TestCommandResult offline =
@@ -301,7 +308,8 @@ TEST_CASE("cache tracks context and system instructions", "[cache][options]")
     REQUIRE(offline.m_status == 0);
     SECTION("header contents")
     {
-        std::ofstream(work.path() / "include/test_score.h") << "inline constexpr int score = 8;\n";
+        std::ofstream(work.path() / "include/test_integration_score.h")
+            << "inline constexpr int score = 8;\n";
     }
     SECTION("system prompt")
     {
@@ -328,12 +336,12 @@ TEST_CASE("modifier parentheses are optional", "[generation][options]")
 {
     llmcpp::test::TestWorkspace work;
     std::ofstream(work.path() / "modifiers.cpp")
-        << "#include \"include/test_context.h\"\n"
+        << "#include \"include/test_integration_context.h\"\n"
         << "__llm__ int bare() { Return the score. }\n"
         << "__llm__() int empty() { Return the score. }\n"
         << "__llm__(max_attempts(2)) int configured() { Return the score. }\n";
-    llmcpp::test::TestCommandResult result =
-        work.mock("json/test_options.json", {"--llm", "-fllm-no-cache", "modifiers.cpp"});
+    llmcpp::test::TestCommandResult result = work.mock(
+        "json/test_integration_options.json", {"--llm", "-fllm-no-cache", "modifiers.cpp"});
     INFO(result.m_err);
     REQUIRE(result.m_status == 0);
     std::string source = llmcpp::test::read_file(work.path() / "modifiers.llm.cpp");
@@ -348,13 +356,13 @@ TEST_CASE("compiler identification macro is defined", "[generation][options]")
     std::ofstream(work.path() / "macro.cpp") << "#if !defined(__LLMCPP__) || __LLMCPP__ != 1\n"
                                              << "#error missing compiler identification\n"
                                              << "#endif\n"
-                                             << "#include \"include/test_context.h\"\n"
+                                             << "#include \"include/test_integration_context.h\"\n"
                                              << "__llm__ int generated() { Return the score. }\n";
     llmcpp::test::TestCommandResult preprocess = work.llmcpp({"-E", "macro.cpp"});
     INFO(preprocess.m_err);
     REQUIRE(preprocess.m_status == 0);
-    llmcpp::test::TestCommandResult compile =
-        work.mock("json/test_options.json", {"-fsyntax-only", "-fllm-no-cache", "macro.cpp"});
+    llmcpp::test::TestCommandResult compile = work.mock(
+        "json/test_integration_options.json", {"-fsyntax-only", "-fllm-no-cache", "macro.cpp"});
     INFO(compile.m_err);
     REQUIRE(compile.m_status == 0);
     std::ofstream(work.path() / "plain.cpp")
@@ -378,10 +386,10 @@ TEST_CASE("system prompt modifier is scoped to one function", "[generation][cach
     std::vector<std::string> args{"--llm", "-fllm-cache-dir=cache",
                                   "-fllm-system-prompt=default.md", "-fllm-append-prompt=append.md",
                                   "prompts.cpp"};
-    auto result = work.mock("json/test_return_values.json", args);
+    auto result = work.mock("json/test_integration_return_values.json", args);
     INFO(result.m_err);
     REQUIRE(result.m_status == 0);
-    std::string log = llmcpp::test::read_file(work.path() / "test_return_values.log");
+    std::string log = llmcpp::test::read_file(work.path() / "test_integration_return_values.log");
     size_t split = log.find("== increment\n");
     REQUIRE(split != std::string::npos);
     std::string targetLog = log.substr(0, split);
@@ -443,10 +451,10 @@ TEST_CASE("function prompt additions configuration and transcripts", "[generatio
                                   "-fllm-agent-config=default.json",
                                   "-fllm-transcript=default.jsonl",
                                   "local.cpp"};
-    auto result = work.mock("json/test_return_values.json", args);
+    auto result = work.mock("json/test_integration_return_values.json", args);
     INFO(result.m_err);
     REQUIRE(result.m_status == 0);
-    std::string log = llmcpp::test::read_file(work.path() / "test_return_values.log");
+    std::string log = llmcpp::test::read_file(work.path() / "test_integration_return_values.log");
     size_t split = log.find("== increment\n");
     REQUIRE(split != std::string::npos);
     std::string targetLog = log.substr(0, split);
@@ -503,8 +511,8 @@ TEST_CASE("dump context modifier selects functions", "[options]")
 TEST_CASE("command line cache salt supplies a default", "[cache][options]")
 {
     llmcpp::test::TestWorkspace work;
-    auto result = work.mock("json/test_options.json",
-                            {"--llm", "-fllm-cache-salt=driver", "test_options.cpp"});
+    auto result = work.mock("json/test_integration_options.json",
+                            {"--llm", "-fllm-cache-salt=driver", "test_integration_options.cpp"});
     INFO(result.m_err);
     REQUIRE(result.m_status == 0);
     for (const auto &entry : fs::directory_iterator(work.path() / ".llmcache")) {
@@ -513,12 +521,12 @@ TEST_CASE("command line cache salt supplies a default", "[cache][options]")
     }
     std::ofstream(work.path() / "local.cpp") << "__llm__ int answer() { Return 42. }\n";
     std::vector<std::string> args{"--llm", "-fllm-cache-salt=driver", "local.cpp"};
-    REQUIRE(work.mock("json/test_return_values.json", args).m_status == 0);
+    REQUIRE(work.mock("json/test_integration_return_values.json", args).m_status == 0);
     args.push_back("-fllm-offline");
     REQUIRE(work.llmcpp(args).m_status == 0);
     args[1] = "-fllm-cache-salt=changed";
     REQUIRE(work.llmcpp(args).m_status != 0);
-    REQUIRE(work.mock("json/test_return_values.json",
+    REQUIRE(work.mock("json/test_integration_return_values.json",
                       {"--llm", "-fllm-cache-salt=driver", "-fllm-no-cache",
                        "-fllm-cache-dir=unused", "local.cpp"})
                 .m_status == 0);
@@ -597,16 +605,17 @@ TEST_CASE("tool call modifier overrides driver defaults", "[generation][options]
     std::ofstream(work.path() / "tools.cpp")
         << "__llm__(max_tool_calls(" << limit << ")) int answer() { Return 42. }\n";
     auto result =
-        work.mock("json/test_return_values.json",
+        work.mock("json/test_integration_return_values.json",
                   {"--llm", "-fllm-no-cache",
                    "-fllm-max-tool-calls=" + std::string(allowed ? "1" : "10"), "tools.cpp"});
     INFO(result.m_err);
     CHECK((result.m_status == 0) == allowed);
-    CHECK(llmcpp::test::read_file(work.path() / "test_return_values.log")
+    CHECK(llmcpp::test::read_file(work.path() / "test_integration_return_values.log")
               .find("\"max_tool_calls\": " + limit) != std::string::npos);
     if (!allowed) {
         llmcpp::test::check_contains(
-            llmcpp::test::read_file(work.path() / "test_return_values.log"), {"tool call limit"});
+            llmcpp::test::read_file(work.path() / "test_integration_return_values.log"),
+            {"tool call limit"});
     }
 }
 
@@ -644,12 +653,12 @@ TEST_CASE("invalid generation configuration is diagnosed", "[options]")
         llmcpp::test::check_contains(result.m_err, {"error:"});
     }
     llmcpp::test::TestCommandResult missing =
-        work.llmcpp({"-fllm-system-prompt=missing.md", "test_failure.cpp"});
+        work.llmcpp({"-fllm-system-prompt=missing.md", "test_integration_failure.cpp"});
     CHECK(missing.m_status != 0);
     llmcpp::test::check_contains(missing.m_err, {"cannot read system prompt"});
     std::ofstream(work.path() / "invalid.json") << "[]";
     llmcpp::test::TestCommandResult config =
-        work.llmcpp({"-fllm-agent-config=invalid.json", "test_failure.cpp"});
+        work.llmcpp({"-fllm-agent-config=invalid.json", "test_integration_failure.cpp"});
     CHECK(config.m_status != 0);
     llmcpp::test::check_contains(config.m_err, {"agent configuration must be a JSON object"});
 }
@@ -658,12 +667,13 @@ TEST_CASE("invalid generation configuration is diagnosed", "[options]")
 TEST_CASE("generated sources compile and cache reproducibly", "[generation][cache]")
 {
     llmcpp::test::TestWorkspace work;
-    llmcpp::test::TestCommandResult generate = work.mock(
-        "json/test_all_forms.json", {"--llm", "-fllm-cache-dir=cache", "test_all_forms.cpp"});
+    llmcpp::test::TestCommandResult generate =
+        work.mock("json/test_integration_all_forms.json",
+                  {"--llm", "-fllm-cache-dir=cache", "test_integration_all_forms.cpp"});
     INFO(generate.m_err);
     REQUIRE(generate.m_status == 0);
 
-    fs::path generated = work.path() / "test_all_forms.llm.cpp";
+    fs::path generated = work.path() / "test_integration_all_forms.llm.cpp";
     REQUIRE(fs::exists(generated));
     std::string source = llmcpp::test::read_file(generated);
     CHECK(source.find("__llm__") == std::string::npos);
@@ -671,46 +681,52 @@ TEST_CASE("generated sources compile and cache reproducibly", "[generation][cach
     CHECK(llmcpp::test::count_occurrences(source, "// prompt:") == 8);
 
     llmcpp::test::TestCommandResult build =
-        work.llmcpp({"test_all_forms.llm.cpp", "-o", "from-llm-cpp"});
+        work.llmcpp({"test_integration_all_forms.llm.cpp", "-o", "from-llm-cpp"});
     INFO(build.m_err);
     REQUIRE(build.m_status == 0);
     llmcpp::test::TestCommandResult run = work.run("./from-llm-cpp");
     REQUIRE(run.m_status == 0);
-    CHECK(run.m_out == llmcpp::test::read_file(work.path() / "test_all_forms.expected"));
+    CHECK(run.m_out ==
+          llmcpp::test::read_file(work.path() / "test_integration_all_forms.expected"));
 
     llmcpp::test::TestCommandResult gxx =
-        work.run("g++", {"-std=c++17", "test_all_forms.llm.cpp", "-o", "with-gxx"});
+        work.run("g++", {"-std=c++17", "test_integration_all_forms.llm.cpp", "-o", "with-gxx"});
     INFO(gxx.m_err);
     REQUIRE(gxx.m_status == 0);
     run = work.run("./with-gxx");
     REQUIRE(run.m_status == 0);
-    CHECK(run.m_out == llmcpp::test::read_file(work.path() / "test_all_forms.expected"));
+    CHECK(run.m_out ==
+          llmcpp::test::read_file(work.path() / "test_integration_all_forms.expected"));
 
-    llmcpp::test::TestCommandResult offline = work.llmcpp(
-        {"-fllm-offline", "-fllm-cache-dir=cache", "test_all_forms.cpp", "-o", "direct"});
+    llmcpp::test::TestCommandResult offline =
+        work.llmcpp({"-fllm-offline", "-fllm-cache-dir=cache", "test_integration_all_forms.cpp",
+                     "-o", "direct"});
     INFO(offline.m_err);
     REQUIRE(offline.m_status == 0);
     run = work.run("./direct");
     REQUIRE(run.m_status == 0);
-    CHECK(run.m_out == llmcpp::test::read_file(work.path() / "test_all_forms.expected"));
+    CHECK(run.m_out ==
+          llmcpp::test::read_file(work.path() / "test_integration_all_forms.expected"));
 
     auto oldTime = fs::file_time_type::clock::now() - std::chrono::hours(24);
     fs::last_write_time(generated, oldTime);
-    llmcpp::test::TestCommandResult regenerate =
-        work.llmcpp({"--llm", "-fllm-offline", "-fllm-cache-dir=cache", "test_all_forms.cpp"});
+    llmcpp::test::TestCommandResult regenerate = work.llmcpp(
+        {"--llm", "-fllm-offline", "-fllm-cache-dir=cache", "test_integration_all_forms.cpp"});
     INFO(regenerate.m_err);
     REQUIRE(regenerate.m_status == 0);
     CHECK(fs::last_write_time(generated) == oldTime);
 
-    llmcpp::test::TestCommandResult preprocess = work.llmcpp(
-        {"--llm", "-E", "-fllm-offline", "-fllm-cache-dir=cache", "test_all_forms.cpp"});
+    llmcpp::test::TestCommandResult preprocess =
+        work.llmcpp({"--llm", "-E", "-fllm-offline", "-fllm-cache-dir=cache",
+                     "test_integration_all_forms.cpp"});
     INFO(preprocess.m_err);
     REQUIRE(preprocess.m_status == 0);
-    llmcpp::test::check_contains(llmcpp::test::read_file(work.path() / "test_all_forms.llm.ii"),
-                                 {"++count;"});
+    llmcpp::test::check_contains(
+        llmcpp::test::read_file(work.path() / "test_integration_all_forms.llm.ii"), {"++count;"});
 
     llmcpp::test::TestCommandResult multiple =
-        work.llmcpp({"--llm", "test_all_forms.cpp", "test_tools.cpp", "-o", "both.cpp"});
+        work.llmcpp({"--llm", "test_integration_all_forms.cpp", "test_integration_tools.cpp", "-o",
+                     "both.cpp"});
     REQUIRE(multiple.m_status != 0);
     llmcpp::test::check_contains(multiple.m_err,
                                  {"cannot specify -o when generating multiple output files"});
@@ -721,8 +737,8 @@ TEST_CASE("offline modifier requires a cached body", "[generation][cache][option
 {
     llmcpp::test::TestWorkspace work;
     std::ofstream(work.path() / "answer.cpp") << "__llm__(       ) int answer() { Return 42. }\n";
-    auto result =
-        work.mock("json/test_return_values.json", {"--llm", "-fllm-cache-dir=cache", "answer.cpp"});
+    auto result = work.mock("json/test_integration_return_values.json",
+                            {"--llm", "-fllm-cache-dir=cache", "answer.cpp"});
     INFO(result.m_err);
     REQUIRE(result.m_status == 0);
     std::ofstream(work.path() / "answer.cpp") << "__llm__(offline) int answer() { Return 42. }\n";
@@ -767,7 +783,7 @@ TEST_CASE("reference context is additive and invalidates cache", "[cache][option
     REQUIRE(result.m_status == 0);
     llmcpp::test::check_contains(result.m_out,
                                  {"references", "Global reference.", "Local reference.", "512"});
-    result = work.mock("json/test_return_values.json", args);
+    result = work.mock("json/test_integration_return_values.json", args);
     REQUIRE(result.m_status == 0);
     args.push_back("-fllm-offline");
     result = work.llmcpp(args);
@@ -795,7 +811,7 @@ TEST_CASE("read only caching permits generation without writes", "[cache][option
     }
     std::ofstream(work.path() / "answer.cpp")
         << "__llm__(" << modifiers << ") int answer() { Return 42. }\n";
-    auto result = work.mock("json/test_return_values.json", args);
+    auto result = work.mock("json/test_integration_return_values.json", args);
     INFO(result.m_err);
     REQUIRE(result.m_status == 0);
     llmcpp::test::check_contains(result.m_err, {"miss:", "not written: cache is read-only"});
@@ -803,7 +819,7 @@ TEST_CASE("read only caching permits generation without writes", "[cache][option
     std::vector<std::string> writable{"--llm", "-fllm-cache-dir=cache", "answer.cpp"};
     std::ofstream(work.path() / "answer.cpp")
         << "__llm__(" << std::string(modifiers.size(), ' ') << ") int answer() { Return 42. }\n";
-    result = work.mock("json/test_return_values.json", writable);
+    result = work.mock("json/test_integration_return_values.json", writable);
     REQUIRE(result.m_status == 0);
     std::ofstream(work.path() / "answer.cpp")
         << "__llm__(" << modifiers << ") int answer() { Return 42. }\n";
@@ -815,7 +831,7 @@ TEST_CASE("read only caching permits generation without writes", "[cache][option
     for (const auto &entry : fs::directory_iterator(work.path() / "cache")) {
         before[entry.path()] = llmcpp::test::read_file(entry.path());
     }
-    result = work.mock("json/test_return_values.json", args);
+    result = work.mock("json/test_integration_return_values.json", args);
     REQUIRE(result.m_status == 0);
     llmcpp::test::check_contains(result.m_err, {"bypass:", "not written:"});
     for (const auto &[path, contents] : before) {
@@ -862,7 +878,7 @@ TEST_CASE("CLI backends reject explicit output token limits", "[options][agent]"
     llmcpp::test::TestWorkspace work;
     for (const std::string &backend : {"codex", "claude"}) {
         auto result = work.llmcpp({"--llm", "-fllm-no-cache", "-fllm-backend=" + backend,
-                                   "-fllm-max-output-tokens=512", "test_failure.cpp"},
+                                   "-fllm-max-output-tokens=512", "test_integration_failure.cpp"},
                                   {{"LLMCPP_AGENT", ""},
                                    {"LLMCPP_CODEX", MOCK_AGENT_PATH},
                                    {"LLMCPP_CLAUDE", MOCK_AGENT_PATH}});
@@ -898,7 +914,7 @@ TEST_CASE("force regeneration overrides cached bodies and offline mode", "[cache
     }
     std::ofstream(work.path() / "answer.cpp")
         << "__llm__(" << modifiers << ") int answer() { Return 42. }\n";
-    auto result = work.mock("json/test_return_values.json", args);
+    auto result = work.mock("json/test_integration_return_values.json", args);
     INFO(result.m_err);
     REQUIRE(result.m_status == 0);
     for (const auto &entry : fs::directory_iterator(work.path() / "cache")) {
@@ -908,7 +924,7 @@ TEST_CASE("force regeneration overrides cached bodies and offline mode", "[cache
         body.replace(offset, 10, "return 41;");
         std::ofstream(entry.path()) << body;
     }
-    result = work.mock("json/test_return_values.json", args);
+    result = work.mock("json/test_integration_return_values.json", args);
     INFO(result.m_err);
     REQUIRE(result.m_status == 0);
     llmcpp::test::check_contains(llmcpp::test::read_file(work.path() / "answer.llm.cpp"),
@@ -924,7 +940,7 @@ TEST_CASE("cache lifetime expires old entries", "[generation][cache][options]")
     llmcpp::test::TestWorkspace work;
     std::ofstream(work.path() / "answer.cpp") << "__llm__ int answer() { Return 42. }\n";
     std::vector<std::string> args{"--llm", "-fllm-cache-dir=cache", "answer.cpp"};
-    auto result = work.mock("json/test_return_values.json", args);
+    auto result = work.mock("json/test_integration_return_values.json", args);
     INFO(result.m_err);
     REQUIRE(result.m_status == 0);
     fs::path cache = fs::directory_iterator(work.path() / "cache")->path();
@@ -957,7 +973,7 @@ TEST_CASE("cache lifetime expires old entries", "[generation][cache][options]")
         regenerate = true;
     }
     if (regenerate) {
-        result = work.mock("json/test_return_values.json", args);
+        result = work.mock("json/test_integration_return_values.json", args);
         INFO(result.m_err);
         REQUIRE(result.m_status == 0);
         CHECK(fs::last_write_time(cache) > oldTime);
@@ -982,8 +998,8 @@ TEST_CASE("cache lifetime modifier overrides driver defaults", "[generation][cac
     llmcpp::test::TestWorkspace work;
     std::ofstream(work.path() / "answer.cpp")
         << "__llm__(key(\"abcdef0123\")) int answer() { Return 42. }\n";
-    auto result =
-        work.mock("json/test_return_values.json", {"--llm", "-fllm-cache-dir=cache", "answer.cpp"});
+    auto result = work.mock("json/test_integration_return_values.json",
+                            {"--llm", "-fllm-cache-dir=cache", "answer.cpp"});
     REQUIRE(result.m_status == 0);
     fs::path cache = work.path() / "cache/abcdef0.cpp";
     auto oldTime = fs::file_time_type::clock::now() - std::chrono::hours(2);
@@ -1019,8 +1035,8 @@ TEST_CASE("cache lifetime requires nonnegative integers", "[options]")
 {
     llmcpp::test::TestWorkspace work;
     for (const char *value : {"-1", "abc", "1.5", "4294967296", ""}) {
-        auto result = work.llmcpp(
-            {std::string("-fllm-cache-lifetime=") + value, "-fsyntax-only", "test_all_forms.cpp"});
+        auto result = work.llmcpp({std::string("-fllm-cache-lifetime=") + value, "-fsyntax-only",
+                                   "test_integration_all_forms.cpp"});
         REQUIRE(result.m_status != 0);
         llmcpp::test::check_contains(result.m_err, {"invalid value for -fllm-cache-lifetime"});
     }
@@ -1042,7 +1058,7 @@ TEST_CASE("cache directory modifier is scoped to one function", "[generation][ca
     fs::create_directory(work.path() / "custom-cache");
     std::ofstream(work.path() / "custom-cache/abcdef0.cpp") << "occupied prefix\n";
     std::vector<std::string> args{"--llm", "-fllm-cache-dir=default-cache", "directories.cpp"};
-    auto result = work.mock("json/test_return_values.json", args);
+    auto result = work.mock("json/test_integration_return_values.json", args);
     INFO(result.m_err);
     REQUIRE(result.m_status == 0);
     REQUIRE(fs::exists(work.path() / "custom-cache/abcdef01.cpp"));
@@ -1064,7 +1080,7 @@ TEST_CASE("explicit cache keys pin generated bodies", "[generation][cache][optio
     llmcpp::test::TestWorkspace work;
     std::ofstream(work.path() / "answer.cpp")
         << "__llm__(key(\"ABCDEF0123\")) int answer() { Return 42. }\n";
-    auto result = work.mock("json/test_return_values.json",
+    auto result = work.mock("json/test_integration_return_values.json",
                             {"--llm", "-fllm-no-cache", "-fllm-cache-dir=cache", "answer.cpp"});
     INFO(result.m_err);
     REQUIRE(result.m_status == 0);
@@ -1088,7 +1104,7 @@ TEST_CASE("explicit cache keys pin generated bodies", "[generation][cache][optio
     SECTION("prefix selects an ordinary computed cache hash")
     {
         std::ofstream(work.path() / "answer.cpp") << "__llm__ int answer() { Return 42. }\n";
-        result = work.mock("json/test_return_values.json",
+        result = work.mock("json/test_integration_return_values.json",
                            {"--llm", "-fllm-cache-dir=ordinary-cache", "answer.cpp"});
         REQUIRE(result.m_status == 0);
         std::string ordinary =
@@ -1126,8 +1142,8 @@ TEST_CASE("cache hashes abbreviate without losing identity", "[generation][cache
 {
     llmcpp::test::TestWorkspace work;
     std::ofstream(work.path() / "answer.cpp") << "__llm__ int answer() { Return 42. }\n";
-    auto result =
-        work.mock("json/test_return_values.json", {"--llm", "-fllm-cache-dir=cache", "answer.cpp"});
+    auto result = work.mock("json/test_integration_return_values.json",
+                            {"--llm", "-fllm-cache-dir=cache", "answer.cpp"});
     INFO(result.m_err);
     REQUIRE(result.m_status == 0);
     fs::path cache;
@@ -1174,7 +1190,7 @@ TEST_CASE("cache hashes abbreviate without losing identity", "[generation][cache
         std::ofstream(cache.parent_path() / (other + ".cpp")) << conflicting;
         args.erase(args.begin() + 1);
         args.push_back("-fllm-regenerate");
-        result = work.mock("json/test_return_values.json", args);
+        result = work.mock("json/test_integration_return_values.json", args);
         INFO(result.m_err);
         REQUIRE(result.m_status == 0);
         CHECK(fs::exists(cache.parent_path() / (key.substr(0, 8) + ".cpp")));
@@ -1184,15 +1200,16 @@ TEST_CASE("cache hashes abbreviate without losing identity", "[generation][cache
     }
     SECTION("new cache filenames honor explicit length")
     {
-        result = work.mock("json/test_return_values.json", {"--llm", "-fllm-cache-dir=long-cache",
-                                                            "-fllm-hash-abbrev=10", "answer.cpp"});
+        result = work.mock(
+            "json/test_integration_return_values.json",
+            {"--llm", "-fllm-cache-dir=long-cache", "-fllm-hash-abbrev=10", "answer.cpp"});
         REQUIRE(result.m_status == 0);
         REQUIRE(fs::exists(work.path() / "long-cache" / (key.substr(0, 10) + ".cpp")));
     }
     SECTION("an occupied prefix is not overwritten")
     {
         std::ofstream(cache) << "unrelated cache contents\n";
-        result = work.mock("json/test_return_values.json",
+        result = work.mock("json/test_integration_return_values.json",
                            {"--llm", "-fllm-regenerate", "-fllm-cache-dir=cache", "answer.cpp"});
         INFO(result.m_err);
         REQUIRE(result.m_status == 0);
@@ -1206,8 +1223,8 @@ TEST_CASE("hash abbreviation validates its length", "[options]")
 {
     llmcpp::test::TestWorkspace work;
     for (const char *value : {"0", "65", "-1", "abc", ""}) {
-        auto result = work.llmcpp(
-            {std::string("-fllm-hash-abbrev=") + value, "-fsyntax-only", "test_all_forms.cpp"});
+        auto result = work.llmcpp({std::string("-fllm-hash-abbrev=") + value, "-fsyntax-only",
+                                   "test_integration_all_forms.cpp"});
         REQUIRE(result.m_status != 0);
         llmcpp::test::check_contains(result.m_err, {"invalid value for -fllm-hash-abbrev"});
     }
@@ -1220,14 +1237,15 @@ TEST_CASE("C++ output filenames imply source generation", "[generation]")
     for (const std::string &output :
          {"main.llm.cpp", "anything.cpp", "anything.cc", "anything.cxx"}) {
         for (bool joined : {false, true}) {
-            std::vector<std::string> args{"-fllm-no-cache", "test_all_forms.cpp"};
+            std::vector<std::string> args{"-fllm-no-cache", "test_integration_all_forms.cpp"};
             if (joined) {
                 args.push_back("-o" + output);
             } else {
                 args.push_back("-o");
                 args.push_back(output);
             }
-            llmcpp::test::TestCommandResult result = work.mock("json/test_all_forms.json", args);
+            llmcpp::test::TestCommandResult result =
+                work.mock("json/test_integration_all_forms.json", args);
             INFO(result.m_err);
             REQUIRE(result.m_status == 0);
             std::string source = llmcpp::test::read_file(work.path() / output);
@@ -1235,8 +1253,8 @@ TEST_CASE("C++ output filenames imply source generation", "[generation]")
             CHECK(source.find("++count;") != std::string::npos);
         }
     }
-    llmcpp::test::TestCommandResult multiple =
-        work.llmcpp({"test_all_forms.cpp", "test_tools.cpp", "-o", "both.cpp"});
+    llmcpp::test::TestCommandResult multiple = work.llmcpp(
+        {"test_integration_all_forms.cpp", "test_integration_tools.cpp", "-o", "both.cpp"});
     REQUIRE(multiple.m_status != 0);
     llmcpp::test::check_contains(multiple.m_err,
                                  {"cannot specify -o when generating multiple output files"});
@@ -1247,11 +1265,12 @@ TEST_CASE("agent tools expose compiler context and validate bodies", "[tools]")
 {
     llmcpp::test::TestWorkspace work;
     llmcpp::test::TestCommandResult result =
-        work.mock("json/test_tools.json", {"-fllm-no-cache", "test_tools.cpp", "-o", "tools"});
+        work.mock("json/test_integration_tools.json",
+                  {"-fllm-no-cache", "test_integration_tools.cpp", "-o", "tools"});
     INFO(result.m_err);
     REQUIRE(result.m_status == 0);
 
-    std::string log = llmcpp::test::read_file(work.path() / "test_tools.log");
+    std::string log = llmcpp::test::read_file(work.path() / "test_integration_tools.log");
     llmcpp::test::check_contains(log, {"not accessible from here", "declared after this function",
                                        "\"size_bytes\": 4", "public: void deposit(int amount)",
                                        "'cents' is a private member of 'Account'",
@@ -1268,12 +1287,13 @@ TEST_CASE("value-returning and empty targets infer behavior without body comment
           "[generation][returns][comments]")
 {
     llmcpp::test::TestWorkspace work;
-    llmcpp::test::TestCommandResult generate = work.mock(
-        "json/test_return_values.json", {"--llm", "-fllm-no-cache", "test_return_values.cpp"});
+    llmcpp::test::TestCommandResult generate =
+        work.mock("json/test_integration_return_values.json",
+                  {"--llm", "-fllm-no-cache", "test_integration_return_values.cpp"});
     INFO(generate.m_err);
     REQUIRE(generate.m_status == 0);
 
-    std::string log = llmcpp::test::read_file(work.path() / "test_return_values.log");
+    std::string log = llmcpp::test::read_file(work.path() / "test_integration_return_values.log");
     llmcpp::test::check_contains(log, {"\"return_type\": \"double\"", "\"return_type\": \"auto\"",
                                        "\"return_type\": \"deduced from the generated body\"",
                                        "\"prompt\": \"\"", "\"prompt\": \"Return x plus one.\""});
@@ -1282,7 +1302,7 @@ TEST_CASE("value-returning and empty targets infer behavior without body comment
     CHECK(log.find("Return zero instead") == std::string::npos);
     CHECK(log.find("Make the program fail") == std::string::npos);
 
-    fs::path generated = work.path() / "test_return_values.llm.cpp";
+    fs::path generated = work.path() / "test_integration_return_values.llm.cpp";
     REQUIRE(fs::exists(generated));
     std::string source = llmcpp::test::read_file(generated);
     CHECK(source.find("__llm__") == std::string::npos);
@@ -1307,7 +1327,7 @@ TEST_CASE("dump code modifier is scoped to one function", "[generation][diagnost
         << "__llm__(dump_code) int answer() { Return 42. }\n"
         << "__llm__ int increment(int x) { Return x plus one. }\n";
     std::vector<std::string> args{"--llm", "-fllm-cache-dir=cache", "diagnostics.cpp"};
-    auto result = work.mock("json/test_return_values.json", args);
+    auto result = work.mock("json/test_integration_return_values.json", args);
     INFO(result.m_err);
     REQUIRE(result.m_status == 0);
     llmcpp::test::check_contains(result.m_err, {"body of 'answer'", "return 42;"});
@@ -1327,7 +1347,7 @@ TEST_CASE("verbose modifier is scoped to one function", "[generation][diagnostic
         << "__llm__(verbose) int answer() { Return 42. }\n"
         << "__llm__ int increment(int x) { Return x plus one. }\n";
     std::vector<std::string> args{"--llm", "-fllm-cache-dir=cache", "diagnostics.cpp"};
-    auto result = work.mock("json/test_return_values.json", args);
+    auto result = work.mock("json/test_integration_return_values.json", args);
     INFO(result.m_err);
     REQUIRE(result.m_status == 0);
     llmcpp::test::check_contains(result.m_err, {"generating 'answer'", "generated 'answer'",
@@ -1354,7 +1374,8 @@ TEST_CASE("successful generation is silent by default", "[generation][diagnostic
         verbose = true;
         args.push_back("-fllm-verbose");
     }
-    llmcpp::test::TestCommandResult result = work.mock("json/test_return_values.json", args);
+    llmcpp::test::TestCommandResult result =
+        work.mock("json/test_integration_return_values.json", args);
     INFO(result.m_err);
     REQUIRE(result.m_status == 0);
     CHECK(result.m_out.empty());
@@ -1369,8 +1390,9 @@ TEST_CASE("successful generation is silent by default", "[generation][diagnostic
 TEST_CASE("agent failures are reported", "[failures]")
 {
     llmcpp::test::TestWorkspace work;
-    llmcpp::test::TestCommandResult result = work.mock(
-        "json/test_failure.json", {"-fllm-no-cache", "test_failure.cpp", "-o", "failure"});
+    llmcpp::test::TestCommandResult result =
+        work.mock("json/test_integration_failure.json",
+                  {"-fllm-no-cache", "test_integration_failure.cpp", "-o", "failure"});
     REQUIRE(result.m_status != 0);
     llmcpp::test::check_contains(
         result.m_err, {"LLM failed to generate a body for 'f': mock gave up",
@@ -1383,11 +1405,12 @@ TEST_CASE("agent modifier overrides driver defaults", "[generation][options]")
     llmcpp::test::TestWorkspace work;
     std::ofstream(work.path() / "agent.cpp")
         << "__llm__(agent(\"" << MOCK_AGENT_PATH << "\")) int answer() { Return 42. }\n";
-    auto result = work.llmcpp(
-        {"--llm", "-fllm-no-cache", "-fllm-backend=openai", "-fllm-agent=/nonexistent/agent",
-         "agent.cpp"},
-        {{"LLMCPP_AGENT", "/nonexistent/environment-agent"},
-         {"LLMCPP_MOCK_SCRIPT", (work.path() / "json/test_return_values.json").string()}});
+    auto result =
+        work.llmcpp({"--llm", "-fllm-no-cache", "-fllm-backend=openai",
+                     "-fllm-agent=/nonexistent/agent", "agent.cpp"},
+                    {{"LLMCPP_AGENT", "/nonexistent/environment-agent"},
+                     {"LLMCPP_MOCK_SCRIPT",
+                      (work.path() / "json/test_integration_return_values.json").string()}});
     INFO(result.m_err);
     REQUIRE(result.m_status == 0);
     llmcpp::test::check_contains(llmcpp::test::read_file(work.path() / "agent.llm.cpp"),
@@ -1425,8 +1448,8 @@ TEST_CASE("backend modifier overrides driver defaults", "[generation][options]")
 TEST_CASE("generation requires an explicit backend", "[generation][options]")
 {
     llmcpp::test::TestWorkspace work;
-    llmcpp::test::TestCommandResult missing =
-        work.llmcpp({"-fllm-no-cache", "test_failure.cpp"}, {{"LLMCPP_BACKEND", ""},
+    llmcpp::test::TestCommandResult missing = work.llmcpp(
+        {"-fllm-no-cache", "test_integration_failure.cpp"}, {{"LLMCPP_BACKEND", ""},
                                                              {"LLMCPP_AGENT", ""},
                                                              {"ANTHROPIC_API_KEY", "test-key"},
                                                              {"OPENAI_API_KEY", "test-key"},
@@ -1436,7 +1459,7 @@ TEST_CASE("generation requires an explicit backend", "[generation][options]")
     llmcpp::test::check_contains(missing.m_err, {"select an LLM backend", "-fllm-backend"});
     for (const std::string &backend : {"auto", "unknown", ""}) {
         llmcpp::test::TestCommandResult invalid =
-            work.llmcpp({"-fllm-backend=" + backend, "test_failure.cpp"});
+            work.llmcpp({"-fllm-backend=" + backend, "test_integration_failure.cpp"});
         CHECK(invalid.m_status != 0);
     }
 }
@@ -1447,7 +1470,7 @@ TEST_CASE("cache separates selected backends", "[cache][options]")
     llmcpp::test::TestWorkspace work;
     std::ofstream(work.path() / "cached.cpp") << "__llm__ int answer() { Return 42. }\n";
     llmcpp::test::TestCommandResult generated =
-        work.mock("json/test_return_values.json",
+        work.mock("json/test_integration_return_values.json",
                   {"--llm", "-fllm-backend=codex", "-fllm-cache-dir=cache", "cached.cpp"});
     REQUIRE(generated.m_status == 0);
     llmcpp::test::TestCommandResult same = work.llmcpp(
@@ -1465,8 +1488,8 @@ TEST_CASE("native Anthropic client completes a compiler tool loop", "[generation
     llmcpp::test::TestWorkspace work;
     llmcpp::test::TestFakeAnthropicServer server;
     llmcpp::test::TestCommandResult result =
-        work.llmcpp({"-fllm-no-cache", "-fllm-max-output-tokens=768", "test_failure.cpp", "-o",
-                     "native-anthropic"},
+        work.llmcpp({"-fllm-no-cache", "-fllm-max-output-tokens=768",
+                     "test_integration_failure.cpp", "-o", "native-anthropic"},
                     {{"LLMCPP_AGENT", ""},
                      {"LLMCPP_BACKEND", "anthropic"},
                      {"ANTHROPIC_API_KEY", "test-key"},
@@ -1498,7 +1521,7 @@ TEST_CASE("native OpenAI client completes a compiler tool loop", "[generation][o
     std::vector<std::string> args{"-fllm-no-cache",
                                   "-fllm-max-output-tokens=768",
                                   "-fllm-backend=openai",
-                                  "test_failure.cpp",
+                                  "test_integration_failure.cpp",
                                   "-o",
                                   "native-openai"};
     SECTION("native client") {}
@@ -1540,13 +1563,13 @@ TEST_CASE("custom chat agent completes a compiler tool loop", "[generation][agen
 {
     llmcpp::test::TestWorkspace work;
     llmcpp::test::TestFakeOpenAIServer server;
-    fs::path adapter = work.path() / "python/test_chat_agent.py";
+    fs::path adapter = work.path() / "python/test_integration_chat_agent.py";
     std::ofstream(work.path() / "chat.json")
         << "{\"base_url\":\"" << server.base_url() << "/v1\",\"model\":\"config-model\"}";
     llmcpp::test::TestCommandResult result = work.llmcpp(
         {"-fllm-no-cache", "-fllm-agent=python3 " + llmcpp::test::shell_quote(adapter.string()),
-         "-fllm-agent-config=chat.json", "-fllm-model=local-model", "test_failure.cpp", "-o",
-         "custom-agent"},
+         "-fllm-agent-config=chat.json", "-fllm-model=local-model", "test_integration_failure.cpp",
+         "-o", "custom-agent"},
         {{"LOCAL_MODEL_API_KEY", "test-key"}});
     INFO(result.m_err);
     REQUIRE(result.m_status == 0);
@@ -1567,7 +1590,7 @@ TEST_CASE("Codex CLI completes a compiler tool loop", "[generation][codex]")
     llmcpp::test::TestWorkspace work;
     std::ofstream(work.path() / "codex.json")
         << "{\"effort\":\"high\",\"executable\":\"" << MOCK_AGENT_PATH << "\"}";
-    std::vector<std::string> args{"-fllm-no-cache", "test_failure.cpp", "-o", "codex"};
+    std::vector<std::string> args{"-fllm-no-cache", "test_integration_failure.cpp", "-o", "codex"};
     std::string backend = "codex";
     SECTION("environment defaults") {}
     SECTION("command line overrides environment")
@@ -1596,8 +1619,8 @@ TEST_CASE("a missing agent is reported", "[failures]")
 {
     llmcpp::test::TestWorkspace work;
     llmcpp::test::TestCommandResult result =
-        work.llmcpp({"-fllm-agent=/nonexistent/llmcpp-agent", "-fllm-no-cache", "test_failure.cpp",
-                     "-o", "failure"});
+        work.llmcpp({"-fllm-agent=/nonexistent/llmcpp-agent", "-fllm-no-cache",
+                     "test_integration_failure.cpp", "-o", "failure"});
     REQUIRE(result.m_status != 0);
     llmcpp::test::check_contains(result.m_err, {"failed to start"});
 }

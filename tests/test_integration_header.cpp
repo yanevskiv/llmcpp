@@ -19,6 +19,6 @@
  */
 
 // __llm__ in an included header is an error: only the main file is rewritten.
-#include "include/test_header.h"
+#include "include/test_integration_header.h"
 
 int main() { from_header(); }
