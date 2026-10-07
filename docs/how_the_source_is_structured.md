@@ -29,7 +29,7 @@ flowchart LR
 | `agents/llmcpp-agent` | The Python adapter for Codex, Claude Code, and external Anthropic access. |
 | `agents/llmcpp-mock-agent` | Scripted agent for deterministic integration tests. |
 | `tests/test_integration_*.cpp` | End-to-end Catch2 tests using numbered fixtures and deterministic backend stand-ins under `tests/test_data/`. |
-| `tests/unit/` | Direct Catch2 tests for individual components; data-record tests live under `tests/unit/data/`. |
+| `tests/unit/` | Direct Catch2 tests for individual components; data-record tests live under `tests/unit/data/` and test-helper tests under `tests/unit/test/`. |
 
 ## Follow one generated body
 

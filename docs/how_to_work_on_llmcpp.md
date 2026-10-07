@@ -101,7 +101,8 @@ comments and naming conventions.
   `tests/test_data/expected/`.
 - Put direct component tests under `tests/unit/` and name them
   `test_unit_<module>.cpp`. Put tests of `llmcpp::data` records under
-  `tests/unit/data/` as `test_unit_data_<record>.cpp`. Tag each case with
+  `tests/unit/data/` as `test_unit_data_<record>.cpp`, and tests of
+  `llmcpp::test` helpers under `tests/unit/test/`. Tag each case with
   `[unit]` and its module name.
 - Use `TestWorkspace::write_fixture()` when a case needs to replace a source
   file. Keep varying modifiers and keys as placeholders in the fixture.
