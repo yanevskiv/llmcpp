@@ -291,7 +291,7 @@ if(LLMCPP_LLVM_IS_BUNDLED)
     install(FILES "${LLMCPP_LLVM_LIBRARY}" DESTINATION lib)
 endif()
 
-# Integration tests.
+# Integration and unit tests.
 if(BUILD_TESTING)
     add_subdirectory(
         "${LLMCPP_CATCH2_SOURCE_DIR}"
@@ -309,6 +309,12 @@ if(BUILD_TESTING)
         tests/test_integration_generation.cpp
         tests/test_integration_agents.cpp
         tests/test_integration_diagnostics.cpp
+        tests/unit/test_unit_agent_prompt.cpp
+        tests/unit/test_unit_source_text.cpp
+        tests/unit/data/test_unit_data_generation_options.cpp
+        tests/unit/data/test_unit_data_source_edit.cpp
+        src/llmcpp/agent_prompt.cpp
+        src/llmcpp/source_text.cpp
         src/llmcpp/test/test_fake_anthropic_server.cpp
         src/llmcpp/test/test_fake_openai_server.cpp
         src/llmcpp/test/test_text.cpp
@@ -322,16 +328,19 @@ if(BUILD_TESTING)
     target_include_directories(llmcpp-tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include")
     target_include_directories(
         llmcpp-tests
-        SYSTEM PRIVATE "${LLMCPP_CPPHTTPLIB_INCLUDE_DIR}"
+        SYSTEM PRIVATE
+            "${LLMCPP_CPPHTTPLIB_INCLUDE_DIR}"
+            "${LLMCPP_LLVM_INCLUDE_DIR}"
+            "${LLMCPP_LLVM_C_INCLUDE_DIR}"
     )
-    target_link_libraries(llmcpp-tests PRIVATE Catch2::Catch2WithMain)
+    target_link_libraries(llmcpp-tests PRIVATE Catch2::Catch2WithMain "${LLMCPP_LLVM_LIBRARY}")
     target_compile_definitions(
         llmcpp-tests
         PRIVATE
             LLMCPP_PATH="$<TARGET_FILE:llmcpp>"
             LLMCPP_AGENT_PATH="${LLMCPP_AGENT_BINARY}"
             MOCK_AGENT_PATH="${CMAKE_CURRENT_SOURCE_DIR}/agents/llmcpp-mock-agent"
-            TEST_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/data"
+            TEST_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/test_data"
     )
     add_dependencies(llmcpp-tests llmcpp)
 
