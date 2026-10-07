@@ -39,9 +39,6 @@ namespace llmcpp::test
         std::filesystem::create_directories(m_root);
         for (const std::filesystem::directory_entry &entry :
              std::filesystem::directory_iterator(TEST_FIXTURES_DIR)) {
-            if (entry.path().filename() == "llmcpp_tests.cpp") {
-                continue;
-            }
             std::filesystem::copy(entry.path(), m_root / entry.path().filename(),
                                   std::filesystem::copy_options::overwrite_existing |
                                       std::filesystem::copy_options::recursive);
