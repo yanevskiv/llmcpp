@@ -168,28 +168,28 @@ namespace llmcpp
     {
         std::string text = "[";
         bool first = true;
-        auto add_capture = [&](const std::string &part) {
+        auto addCapture = [&](const std::string &part) {
             text += (first ? "" : ", ") + part;
             first = false;
         };
         if (lambda->getCaptureDefault() == LCD_ByCopy) {
-            add_capture("=");
+            addCapture("=");
         } else if (lambda->getCaptureDefault() == LCD_ByRef) {
-            add_capture("&");
+            addCapture("&");
         }
         for (const LambdaCapture &capture : lambda->explicit_captures()) {
             switch (capture.getCaptureKind()) {
                 case LCK_This:
-                    add_capture("this");
+                    addCapture("this");
                     break;
                 case LCK_StarThis:
-                    add_capture("*this");
+                    addCapture("*this");
                     break;
                 case LCK_ByRef:
-                    add_capture("&" + capture.getCapturedVar()->getName().str());
+                    addCapture("&" + capture.getCapturedVar()->getName().str());
                     break;
                 case LCK_ByCopy:
-                    add_capture(capture.getCapturedVar()->getName().str());
+                    addCapture(capture.getCapturedVar()->getName().str());
                     break;
                 case LCK_VLAType:
                     break;
