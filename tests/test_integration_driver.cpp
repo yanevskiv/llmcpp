@@ -3,19 +3,18 @@
  *
  * Copyright (C) 2026 Ivan Janevski
  *
- * llmc++ is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 3 of the License, or (at your option) any later version.
+ * llmc++  is  free  software;  you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by the
+ * Free  Software  Foundation;  either  version 3 of the License, or (at
+ * your option) any later version.
  *
- * llmc++ is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
+ * llmc++ is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS  FOR A PARTICULAR PURPOSE. See the GNU General Public License
+ * for more details.
  *
- * You should have received a copy of the GNU Lesser General Public
- * License along with llmc++; if not, see
- * <https://www.gnu.org/licenses/>.
+ * You  should  have  received  a copy of the GNU General Public License
+ * along with llmc++; if not, see <https://www.gnu.org/licenses/>.
  */
 
 // Catch2 declarations for integration tests.
@@ -37,12 +36,12 @@ TEST_CASE("compiler and agent report independent versions", "[integration][drive
     llmcpp::test::TestWorkspace work;
     auto compiler = work.llmcpp({"--version"}, {{"LLMCPP_TIMEOUT", "invalid"}});
     CHECK(compiler.m_status == 0);
-    CHECK(compiler.m_out == "llmc++ 0.0.1\n");
+    CHECK(compiler.m_out == "llmc++ 0.1.0\n");
     CHECK(compiler.m_err.empty());
 
     auto agent = work.run(LLMCPP_AGENT_PATH, {"--version"});
     CHECK(agent.m_status == 0);
-    CHECK(agent.m_out == "llmcpp-agent 0.0.1\n");
+    CHECK(agent.m_out == "llmcpp-agent 0.1.0\n");
     CHECK(agent.m_err.empty());
 }
 
