@@ -36,12 +36,12 @@ TEST_CASE("compiler and agent report independent versions", "[integration][drive
     llmcpp::test::TestWorkspace work;
     auto compiler = work.llmcpp({"--version"}, {{"LLMCPP_TIMEOUT", "invalid"}});
     CHECK(compiler.m_status == 0);
-    CHECK(compiler.m_out == "llmc++ 0.1.0\n");
+    CHECK(compiler.m_out == "llmc++ 1.0.0\n");
     CHECK(compiler.m_err.empty());
 
     auto agent = work.run(LLMCPP_AGENT_PATH, {"--version"});
     CHECK(agent.m_status == 0);
-    CHECK(agent.m_out == "llmcpp-agent 0.1.0\n");
+    CHECK(agent.m_out == "llmcpp-agent 1.0.0\n");
     CHECK(agent.m_err.empty());
 }
 
