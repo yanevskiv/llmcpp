@@ -1,4 +1,4 @@
-# LLMCPP
+# `llmc++`
 
 Write the C++ interface you need, describe the behavior, and let the compiler
 work with an LLM to fill in the body. The result is an ordinary native program.
@@ -8,7 +8,7 @@ tutorial builds on the same small program: first compile it, then generate a
 function, inspect the result, and make the build work offline.
 
 ```{toctree}
-:caption: About LLMCPP
+:caption: About llmc++
 :maxdepth: 1
 
 about/what_and_why

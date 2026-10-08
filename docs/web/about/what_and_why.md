@@ -1,7 +1,7 @@
 # What & Why
 
 You know the function you want: its name, its parameters, and what it should
-do. Usually the next step is to write the implementation. LLMCPP explores
+do. Usually the next step is to write the implementation. `llmc++` explores
 another route: put that description in the function body and have an LLM
 write the implementation during compilation.
 
@@ -22,7 +22,7 @@ credentials, or generation service.
 ## Why put generation in the compiler?
 
 A compiler already knows the types, declarations, members, and captures around
-a function. LLMCPP gives the agent tools to ask for that context and try candidate
+a function. `llmc++` gives the agent tools to ask for that context and try candidate
 bodies. Instead of guessing whether a member exists or a call is well-formed,
 the agent can ask Clang and correct a rejected implementation.
 
@@ -37,7 +37,7 @@ An ambiguous instruction can produce a perfectly compilable wrong answer.
 Treat the generated body as code you need to read and test, not as proof that
 your specification has been satisfied.
 
-LLMCPP is a prototype. Annotations must be in the main source file, not an
+`llmc++` is a prototype. Annotations must be in the main source file, not an
 included header. Templates receive one generated body rather than one per
 instantiation.
 
