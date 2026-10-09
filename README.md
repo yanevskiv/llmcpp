@@ -31,16 +31,16 @@ Here's an example:
 #include <iostream>
 
 template <typename T> 
-__llm__ void print_type();
+__llm__ void print_type()
 {
     Use std::cout to print what T is here.
 }
 
 int main()
 {
-    f<int>();
-    f<short>();
-    f<std::string>();
+    print_type<int>();
+    print_type<short>();
+    print_type<std::string>();
 }
 ```
 
