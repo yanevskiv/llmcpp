@@ -844,3 +844,186 @@ build input from standard input or silently accepting the body. Keep ordinary
 If concurrent generation is enabled, serialize review prompts even when agent
 sessions run in parallel. Test acceptance, rejection and regeneration, abort,
 cache hits, and the no-terminal case with a controlled terminal fixture.
+
+---
+
+## 17. Self-hosting fuzzy builds
+
+`llmc++` should be able to compile itself after every function in its own
+implementation has been replaced with an `__llm__` description. The resulting
+compiler must still pass the unchanged test suite. This works like a staged
+compiler bootstrap, except that each stage rewrites the implementation as prose
+instead of reusing the same source:
+
+```text
+main            real C++, stock Clang            -> build/install
+test/fuzzy-0    descriptions D0, main's llmc++   -> build/test/fuzzy-0/install
+test/fuzzy-1    descriptions D1, fuzzy-0 llmc++  -> build/test/fuzzy-1/install
+test/fuzzy-N    descriptions DN, fuzzy-(N-1)     -> build/test/fuzzy-N/install
+```
+
+`main` stays the ground truth. Fuzzy branches are experiments and never merge
+back. Building and testing them is not part of `./do_tests.sh` or ordinary CI.
+
+### 17.1 What a stage tests
+
+- **The front end on real code.** The `llmcpp` sources exercise annotations on
+  out-of-line members, constructors with initializer lists, functions in
+  anonymous namespaces, heavy LLVM and Clang APIs, `-fno-rtti`, and deep
+  namespace lookup. This is a much larger corpus than `examples/`.
+- **A fuzzy generation harness.** From `fuzzy-1` onward, the compiler that runs
+  `get_task`, `lookup`, `try_compile`, caching, and rewriting is itself
+  generated code. A broken tool causes visible build failures or produces a
+  compiler that fails tests.
+- **How code should be described.** Each generation uses a different set of
+  descriptions, so the series compares description styles against one oracle.
+- **Gaps in the tests.** Suppose a stage passes every test but cannot drive a
+  live backend for the next stage. Then the suite missed something, and the
+  stage should record that as a result.
+
+A passing stage does not prove the generated code is equivalent to `main`. It
+only shows that the tests cannot tell them apart, so read results together with
+test coverage (§17.6). Results also depend on the model, so pin it and record it.
+
+### 17.2 Scope of replacement
+
+Replace with `__llm__` descriptions:
+
+- every function, method, constructor, destructor, and file-local helper
+  defined in `src/llmcpp/*.cpp`;
+- `main()` in `src/main.cpp`.
+
+Keep as real C++:
+
+- all headers under `include/`. Generation reads their declarations and
+  Doxygen blocks as the contract, and `__llm__` in headers is rejected anyway;
+- variable initializers and constants such as `CacheVersion`, tool schemas, and
+  option tables. These are data, not functions, and they anchor exact strings;
+- constructor initializer lists, which remain ordinary C++ outside the body;
+- everything the test oracle depends on: `tests/`, `src/llmcpp/test/*.cpp`
+  (fake servers, workspace, and text helpers), `agents/`, and the fixtures.
+
+A function with an empty description is allowed but should be rare and
+recorded, because it measures inference from the name and signature only.
+
+### 17.3 Prerequisites on `main`
+
+These are build-only changes unless noted, and they are useful without the
+experiment:
+
+1. **Compile the core sources once.** `llmcpp-tests` currently recompiles
+   `LLMCPP_CORE_SOURCES` with different definitions and warnings. The context
+   digest includes `-D`, `-I`, and `-f` arguments, so a fuzzy build would
+   generate different bodies for the shipped binary and for the unit tests.
+   The tests would then check code that is never shipped. Move the core sources
+   into an object library used by both targets.
+2. **Make cache keys portable.** The context digest appears to include absolute
+   `-I` and `-isystem` values and absolute header paths. A committed cache
+   therefore hits only in a checkout at the same absolute path. Either
+   normalize paths relative to the source root and resource directory (a cache
+   contract change: bump `CacheVersion` and `llmc++`'s minor version) or always
+   build fuzzy stages in Docker under `/workspace`.
+3. **Self-host with no annotations.** Configure `main` with
+   `CMAKE_CXX_COMPILER=build/install/bin/llmc++` and no `__llm__` functions,
+   then pass `./do_tests.sh`. This checks CMake compiler detection,
+   dependency-file flags (`-MD`, `-MF`, `-MT`), linking, and LLVM-header
+   compilation before any model is involved.
+4. **Stage scripts.** Add `./do_build_fuzzy.sh <n>` and `./do_tests_fuzzy.sh <n>`.
+   They select the stage's compiler (`build/install` for 0, otherwise
+   `build/test/fuzzy-<n-1>/install`), configure `build/test/fuzzy-<n>/out`, and
+   install to `build/test/fuzzy-<n>/install`. `build/` is ignored, so earlier
+   stages survive branch switches.
+5. **Optional: `-fllm-jobs` (§15).** Targets within one translation unit run
+   in sequence, and `generation_pass.cpp` alone has dozens of functions. Builds
+   still parallelize across translation units without this.
+
+### 17.4 Branch contents
+
+Each `test/fuzzy-<n>` branch starts from a recorded `main` commit and contains:
+
+- the rewritten `src/llmcpp/*.cpp` and `src/main.cpp`;
+- `fuzzy/MANIFEST.md`: the base `main` commit, the parent compiler (branch and
+  commit), the description-style rules, the backend, model, and effort, the
+  limits, and the dates;
+- the committed caches (`src/**/.llmcache/`, unignored on the branch). With
+  them, the stage rebuilds offline with `LLMCPP_OFFLINE=1`;
+- `fuzzy/generated/*.llm.cpp`: plain C++ from `--llm` for review, diffing
+  against `main`, and bisection (§17.5);
+- `fuzzy/RESULTS.md`: the metrics in §17.6.
+
+Pre-commit style, format, and tidy hooks cannot parse prose bodies, so disable
+them on fuzzy branches. Never rebase a published stage onto a newer `main`;
+start a new series instead, because a stage records an experiment.
+
+### 17.5 Running a stage
+
+1. Build the parent compiler, or confirm it is already built.
+2. Write the descriptions in a new `test/fuzzy-<n>` branch (§17.7).
+3. Run `./do_build_fuzzy.sh <n>` with a live backend and transcripts enabled.
+   Record build failures as results; do not work around them silently.
+4. Run `./do_tests_fuzzy.sh <n>` and record the pass rate on the first attempt.
+5. **Repair rounds (optional, bounded).** Edit only descriptions, never tests,
+   headers, or constants. Record each round and keep the first-attempt result
+   as the main metric. A failing test usually names a behavior, not a function.
+   To localize it, take the `--llm` outputs and swap generated bodies for
+   `main`'s bodies with delta debugging, then build with stock Clang. Avoid
+   editing sources during bisection: every target's cache key includes its
+   whole translation unit, so any edit regenerates the whole file.
+6. Commit the caches, generated sources, manifest, and results. Then verify
+   that a clean offline rebuild reproduces the same binary behavior.
+
+A stage may seed the next only if it passes the full suite, after any repair
+rounds. If it does not, the chain stops and that is the result.
+
+### 17.6 Metrics
+
+Per stage, and per function where meaningful:
+
+- whether the build succeeds; tests passed on the first attempt and after
+  repair rounds; the number of repair rounds;
+- submit attempts, tool calls, and tokens or cost per function, taken from
+  transcripts; wall time per translation unit;
+- description size relative to the original body (characters and tokens), and
+  generated body size relative to the original;
+- test coverage of each function on `main` (llvm-cov). An uncovered function
+  that "passes" says nothing, so report pass rates weighted by coverage;
+- test-suite run time compared with `main`, as a coarse performance check.
+
+### 17.7 Description styles
+
+Descriptions are written from `main`'s code, usually by a separate model, under
+the rules of one style per stage. Shared rules for every style: no code
+fragments, no local variable names, no step-by-step pseudocode; describe
+behavior, not implementation. Copy user-visible strings exactly only when the
+style allows it. Candidate styles:
+
+- **Contract.** Purpose, inputs, outputs, failure behavior, side effects, and
+  the exact diagnostics, protocol strings, and file formats it produces.
+- **Intent.** One or two sentences. Exact strings appear only where a protocol
+  or test needs them.
+- **By reference.** A short intent plus `-fllm-context` references to the man
+  page, guides, or sections of this plan. This tests documentation as a spec.
+- **Minimal.** Empty or nearly empty bodies, relying on names, signatures, and
+  header Doxygen only. This is a lower bound on what the headers communicate.
+
+### 17.8 Separating the two variables
+
+From `fuzzy-1` onward, each stage changes two things: the descriptions and the
+compiler that generated the code. A failure cannot be attributed to either one
+alone. Treat the chain as the main experiment and add a control where a result
+needs explanation: build the same descriptions `D<n>` with `main`'s compiler.
+Use a separate cache directory or `LLMCPP_CACHE_SALT`. Cache keys do not
+include the identity of the `llmc++` binary, so otherwise the control would
+reuse the stage's cached bodies and test nothing. If the control passes and
+the stage fails, suspect the fuzzy compiler. If both fail, suspect the
+descriptions or the model.
+
+### 17.9 Open questions
+
+- Should the description writer see the tests? Seeing them makes descriptions
+  overfit to the oracle; hiding them makes exact-string failures likely.
+- Should descriptions of private helpers be allowed to disappear (with the
+  helper folded into its callers)? This changes headers, so it is out of scope
+  for now.
+- Is the result reproducible across model versions, or does each stage need to
+  be pinned to one model snapshot?
