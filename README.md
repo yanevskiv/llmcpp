@@ -1,18 +1,20 @@
-# llmc++
+<div align="center">
+<img src="docs/res/llmcpp.jpg">
 
-```
- _ _                           
-| | |_ __ ___   ___  _     _   
-| | | '_ ` _ \ / __|| |_ _| |_ 
-| | | | | | | | (_|_   _|_   _|
-|_|_|_| |_| |_|\___||_|   |_|  
-```
+**Write fuzzy C++ functions with llmc++!**
 
-`llmc++` is a C++ compiler driver based on Clang 19 which adds an `__llm__` function modifier.
-You can add `__llm__` to a function, method or a lambda and write its body in plain language.
-It's somewhat inspired by NVIDIA's `nvcc` compiler which provides `__global__` for functions intended to be run on the GPU. 
+[![GPLv3.0 License](https://img.shields.io/badge/License-GPLv3.0-blue.svg)](LICENSE.md)
+</div>
 
-When `llmc++` encounters a function marked with an `__llm__` modifier it asks an LLM for an implementation before continuing the compilation.
+---
+
+**llmc++** is a C++ compiler driver based on Clang 19 which adds an `__llm__` function modifier.
+
+
+You can add `__llm__` to any C++ function, method or a lambda and write its body in plain language.
+It's somewhat inspired by NVIDIA's **nvcc** compiler which provides `__global__` for functions intended to be run on the GPU. 
+
+When **llmc++** encounters a function marked with an `__llm__` modifier it asks an LLM for an implementation before continuing the compilation.
 The LLM does **not** have access to the raw source code. Rather it uses Clang's compiler context to decide on the implementation.
 The LLM can ask Clang about declaration, types, members, captures and use compiler errors to correct its work.
 
