@@ -10,5 +10,5 @@ exec docker run -it --rm \
     --mount "type=bind,source=$project_dir,target=/workspace" \
     --mount type=volume,target=/workspace/deps \
     --workdir /workspace \
-    yanevskiv/llmcpp-dev:latest \
+    yanevskiv/llmcpp-devel:latest \
     ./do_build.sh "$@"

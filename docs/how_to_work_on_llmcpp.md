@@ -58,7 +58,7 @@ Build the development image, then build the project inside it:
 ./do_build_in_docker.sh --parallel 8
 ```
 
-The image is named `yanevskiv/llmcpp-dev:latest` and starts from `ubuntu:latest`.
+The image is named `yanevskiv/llmcpp-devel:latest` and starts from `ubuntu:latest`.
 It includes the build tools and fetched dependencies. Docker builds use
 x86-64 because the current dependency layout requires it.
 
