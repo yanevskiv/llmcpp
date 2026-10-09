@@ -7,7 +7,7 @@ project_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 exec docker buildx build \
     --platform linux/amd64 \
     --load \
-    --tag yanevskiv:llmcpp-dev \
+    --tag yanevskiv/llmcpp-dev:latest \
     --file "$project_dir/docker/Dockerfile" \
     "$@" \
     "$project_dir"
